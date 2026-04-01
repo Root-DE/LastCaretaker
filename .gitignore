@@ -1,0 +1,10 @@
+# OS files
+Thumbs.db
+.DS_Store
+
+# Editor
+.vscode/
+*.swp
+
+# Legacy empty folder (OneDrive lock)
+docs/

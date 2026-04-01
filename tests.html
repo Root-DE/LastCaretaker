@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests — Human Growth Calculator</title>
+  <style>
+    body { font-family: monospace; background: #0d1117; color: #c9d1d9; padding: 20px; }
+    .pass { color: #3fb950; }
+    .fail { color: #f85149; }
+    .section { color: #58a6ff; font-weight: bold; margin-top: 16px; }
+    #results { white-space: pre-wrap; }
+    #summary { margin-top: 20px; font-size: 1.2em; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Test Suite — Human Growth Calculator</h1>
+  <div id="results"></div>
+  <div id="summary"></div>
+  <script>
+    // Minimal test framework
+    let passed = 0, failed = 0;
+    const out = document.getElementById('results');
+
+    function log(msg, cls) {
+      const d = document.createElement('div');
+      d.className = cls || '';
+      d.textContent = msg;
+      out.appendChild(d);
+    }
+
+    function section(name) { log('\n=== ' + name + ' ===', 'section'); }
+
+    function assert(cond, desc) {
+      if (cond) { passed++; log('  ✓ ' + desc, 'pass'); }
+      else { failed++; log('  ✗ ' + desc, 'fail'); }
+    }
+
+    function assertEqual(a, b, desc) {
+      assert(a === b, desc + ' (got ' + JSON.stringify(a) + ', expected ' + JSON.stringify(b) + ')');
+    }
+
+    function assertApprox(a, b, desc, eps) {
+      eps = eps || 0.001;
+      assert(Math.abs(a - b) < eps, desc + ' (got ' + a + ', expected ~' + b + ')');
+    }
+
+    // ─── Load app code as module-like by evaluating ───
+    // We test pure functions by inlining them here (app.js is not a module)
+
+    // === parseCSV ===
+    function parseCSV(text) {
+      const lines = text.trim().split(/\r?\n/);
+      if (lines.length < 2) return { headers: [], rows: [] };
+      const headers = lines[0].split(';');
+      const rows = [];
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(';');
+        if (cols.length < 2) continue;
+        const row = {};
+        for (let j = 0; j < headers.length; j++) {
+          row[headers[j].trim()] = (cols[j] || '').trim();
+        }
+        rows.push(row);
+      }
+      return { headers: headers.map(h => h.trim()), rows };
+    }
+
+    function normalize(s) { return s.replace(/\u00a0/g, ' ').trim(); }
+
+    function esc(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function getItemImageUrl(name) {
+      const formatted = name.replace(/ /g, '_').replace(/'/g, '%27');
+      return 'https://thelastcaretaker.wiki.gg/images/' + formatted + '.png?format=original';
+    }
+
+    function formatNum(n) {
+      if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+      if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+      if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+      return String(n);
+    }
+
+    const STAT_NAMES = [
+      'weight','height','life_exp','strength','intellect',
+      'adaptability','creativity','communication','disipline',
+      'empathy','focus','leadership','logic','patience','wisdom',
+    ];
+
+    function foodStats(row) {
+      const s = new Array(15).fill(0);
+      s[0] = parseFloat(row['Weight']) || 0;
+      s[1] = parseFloat(row['Height']) || 0;
+      s[2] = parseFloat(row['Life Exp']) || 0;
+      s[3] = parseFloat(row['Strength']) || 0;
+      s[4] = parseFloat(row['Intellect']) || 0;
+      return s;
+    }
+
+    function memoryStats(row) {
+      const s = new Array(15).fill(0);
+      s[5]  = parseFloat(row['Adaptability']) || 0;
+      s[7]  = parseFloat(row['Communication']) || 0;
+      s[6]  = parseFloat(row['Creativity']) || 0;
+      s[8]  = parseFloat(row['Discipline']) || 0;
+      s[9]  = parseFloat(row['Empathy']) || 0;
+      s[10] = parseFloat(row['Focus']) || 0;
+      s[4]  = parseFloat(row['Intellect']) || 0;
+      s[11] = parseFloat(row['Leadership']) || 0;
+      s[12] = parseFloat(row['Logic']) || 0;
+      s[13] = parseFloat(row['Patience']) || 0;
+      s[14] = parseFloat(row['Wisdom']) || 0;
+      return s;
+    }
+
+    function humanStats(row) {
+      const s = new Array(15).fill(0);
+      s[0]  = parseFloat(row['Weight']) || 0;
+      s[1]  = parseFloat(row['Height']) || 0;
+      s[2]  = parseFloat(row['Life Exp.']) || 0;
+      s[3]  = parseFloat(row['Strength']) || 0;
+      s[4]  = parseFloat(row['Intellect']) || 0;
+      s[5]  = parseFloat(row['Adaptability']) || 0;
+      s[6]  = parseFloat(row['Creativity']) || 0;
+      s[7]  = parseFloat(row['Communication']) || 0;
+      s[8]  = parseFloat(row['Disipline']) || 0;
+      s[9]  = parseFloat(row['Empathy']) || 0;
+      s[10] = parseFloat(row['Focus']) || 0;
+      s[11] = parseFloat(row['Leadership']) || 0;
+      s[12] = parseFloat(row['Logic']) || 0;
+      s[13] = parseFloat(row['Patience']) || 0;
+      s[14] = parseFloat(row['Wisdom']) || 0;
+      return s;
+    }
+
+    function countValid(total, humanFlat, nHumans) {
+      let count = 0;
+      for (let h = 0; h < nHumans; h++) {
+        let valid = true;
+        const base = h * 15;
+        for (let s = 0; s < 15; s++) {
+          if (humanFlat[base + s] > 0 && total[s] < humanFlat[base + s]) {
+            valid = false; break;
+          }
+        }
+        if (valid) count++;
+      }
+      return count;
+    }
+
+    // ─── Tests ─────────────────────────────────────────────
+
+    section('parseCSV');
+    (function() {
+      const csv = 'Name;Value;Score\nAlpha;10;3.5\nBeta;20;7.0\n';
+      const result = parseCSV(csv);
+      assertEqual(result.headers.length, 3, 'parseCSV parses 3 headers');
+      assertEqual(result.headers[0], 'Name', 'first header is Name');
+      assertEqual(result.rows.length, 2, 'parseCSV parses 2 rows');
+      assertEqual(result.rows[0]['Name'], 'Alpha', 'first row Name');
+      assertEqual(result.rows[1]['Value'], '20', 'second row Value');
+    })();
+
+    (function() {
+      const result = parseCSV('');
+      assertEqual(result.headers.length, 0, 'empty CSV has no headers');
+      assertEqual(result.rows.length, 0, 'empty CSV has no rows');
+    })();
+
+    (function() {
+      const result = parseCSV('A;B\n');
+      assertEqual(result.rows.length, 0, 'header-only CSV has no rows');
+    })();
+
+    (function() {
+      const csv = 'A;B\nfoo\nx;y\n';
+      const result = parseCSV(csv);
+      assertEqual(result.rows.length, 1, 'skips rows with < 2 columns');
+    })();
+
+    section('normalize');
+    (function() {
+      assertEqual(normalize('hello\u00a0world'), 'hello world', 'replaces non-breaking space');
+      assertEqual(normalize('  foo  '), 'foo', 'trims whitespace');
+      assertEqual(normalize('\u00a0test\u00a0'), 'test', 'trims combined nbsp');
+    })();
+
+    section('esc (HTML escaping)');
+    (function() {
+      assertEqual(esc('<script>'), '&lt;script&gt;', 'escapes angle brackets');
+      assertEqual(esc('"hello"'), '&quot;hello&quot;', 'escapes quotes');
+      assertEqual(esc('a & b'), 'a &amp; b', 'escapes ampersand');
+      assertEqual(esc(123), '123', 'converts numbers to string');
+    })();
+
+    section('getItemImageUrl');
+    (function() {
+      assertEqual(
+        getItemImageUrl('Roasted Meat'),
+        'https://thelastcaretaker.wiki.gg/images/Roasted_Meat.png?format=original',
+        'spaces to underscores'
+      );
+      assertEqual(
+        getItemImageUrl("Hunter's Memoir"),
+        "https://thelastcaretaker.wiki.gg/images/Hunter%27s_Memoir.png?format=original",
+        'apostrophe encoded'
+      );
+    })();
+
+    section('formatNum');
+    (function() {
+      assertEqual(formatNum(500), '500', 'small numbers unchanged');
+      assertEqual(formatNum(1500), '1.5K', 'thousands');
+      assertEqual(formatNum(2500000), '2.5M', 'millions');
+      assertEqual(formatNum(3200000000), '3.2B', 'billions');
+      assertEqual(formatNum(0), '0', 'zero');
+    })();
+
+    section('foodStats mapping');
+    (function() {
+      const row = { Weight: '5', Height: '3', 'Life Exp': '2', Strength: '4', Intellect: '1' };
+      const s = foodStats(row);
+      assertEqual(s.length, 15, 'returns 15-element array');
+      assertEqual(s[0], 5, 'weight mapped');
+      assertEqual(s[1], 3, 'height mapped');
+      assertEqual(s[2], 2, 'life_exp mapped');
+      assertEqual(s[3], 4, 'strength mapped');
+      assertEqual(s[4], 1, 'intellect mapped');
+      assertEqual(s[5], 0, 'mental stats are 0 for food');
+      assertEqual(s[14], 0, 'wisdom is 0 for food');
+    })();
+
+    section('memoryStats mapping');
+    (function() {
+      const row = { Adaptability: '2', Communication: '3', Creativity: '1',
+                    Discipline: '4', Empathy: '5', Focus: '6', Intellect: '7',
+                    Leadership: '8', Logic: '9', Patience: '10', Wisdom: '11' };
+      const s = memoryStats(row);
+      assertEqual(s[0], 0, 'weight is 0 for memories');
+      assertEqual(s[5], 2, 'adaptability mapped');
+      assertEqual(s[7], 3, 'communication mapped');
+      assertEqual(s[6], 1, 'creativity mapped');
+      assertEqual(s[8], 4, 'discipline mapped');
+      assertEqual(s[4], 7, 'intellect mapped');
+      assertEqual(s[14], 11, 'wisdom mapped');
+    })();
+
+    section('humanStats mapping');
+    (function() {
+      const row = { Weight: '10', Height: '20', 'Life Exp.': '30', Strength: '40',
+                    Intellect: '50', Adaptability: '1', Creativity: '2',
+                    Communication: '3', Disipline: '4', Empathy: '5', Focus: '6',
+                    Leadership: '7', Logic: '8', Patience: '9', Wisdom: '0' };
+      const s = humanStats(row);
+      assertEqual(s[0], 10, 'weight');
+      assertEqual(s[4], 50, 'intellect');
+      assertEqual(s[8], 4, 'disipline (typo in game)');
+      assertEqual(s[14], 0, 'wisdom=0');
+    })();
+
+    section('countValid (profession matching)');
+    (function() {
+      // 2 humans, each with 15 stats
+      const humanFlat = new Float64Array(30);
+      // Human 0: requires weight=5, height=3
+      humanFlat[0] = 5; humanFlat[1] = 3;
+      // Human 1: requires weight=10
+      humanFlat[15] = 10;
+
+      const total = new Float64Array(15);
+      total[0] = 6; total[1] = 4; // meets human 0 but not human 1
+      assertEqual(countValid(total, humanFlat, 2), 1, 'matches one profession');
+
+      total[0] = 10; // now meets both
+      assertEqual(countValid(total, humanFlat, 2), 2, 'matches both professions');
+
+      total[0] = 2; // meets neither
+      assertEqual(countValid(total, humanFlat, 2), 0, 'matches no professions');
+    })();
+
+    section('CSV roundtrip (food)');
+    (function() {
+      const csv = 'Food;Height;Intellect;Life Exp;Strength;Weight\nBread;0;0;0;2;3\n';
+      const parsed = parseCSV(csv);
+      const f = parsed.rows[0];
+      assertEqual(f['Food'], 'Bread', 'food name parsed');
+      const s = foodStats(f);
+      assertEqual(s[3], 2, 'strength from CSV');
+      assertEqual(s[0], 3, 'weight from CSV');
+    })();
+
+    section('CSV roundtrip (human with NBSP)');
+    (function() {
+      const csv = 'Category;Profession;Weight\nScience;Lab\u00a0Tech;5\n';
+      const parsed = parseCSV(csv);
+      const name = normalize(parsed.rows[0]['Profession']);
+      assertEqual(name, 'Lab Tech', 'non-breaking space normalized');
+    })();
+
+    section('Worker solver (integration)');
+    (function() {
+      // Test that the worker can solve a trivial 1-item problem
+      const worker = new Worker('solver-worker.js');
+      const timeout = setTimeout(() => {
+        assert(false, 'worker timed out');
+        worker.terminate();
+        finish();
+      }, 5000);
+
+      worker.onmessage = function(e) {
+        if (e.data.type === 'done') {
+          clearTimeout(timeout);
+          assert(e.data.solution !== null, 'worker found a solution');
+          if (e.data.solution) {
+            assertEqual(e.data.solution.items.length, 1, 'solution uses 1 item');
+            assertEqual(e.data.solution.collateral, 1, 'matches 1 profession');
+          }
+          worker.terminate();
+          finish();
+        }
+      };
+
+      // 1 item: [0,0,0,0,5, 0,0,0,0,0,0,0,0,0,0] (intellect=5)
+      // 1 human: requires intellect=5
+      worker.postMessage({
+        type: 'solve',
+        items: [[0,0,0,0,5, 0,0,0,0,0,0,0,0,0,0]],
+        humans: [[0,0,0,0,5, 0,0,0,0,0,0,0,0,0,0]],
+        targetReqs: [[4, 5]],
+        bestPerStat: [0,0,0,0,5, 0,0,0,0,0,0,0,0,0,0],
+        inherentCount: 1,
+        firstItems: [0],
+        initialLb: 1,
+        maxSearchDepth: 5,
+        maxCounts: [9999],
+        timeoutSec: 5,
+      });
+
+      return; // async — finish() will be called
+    })();
+
+    // Deferred finish for async tests
+    let asyncDone = false;
+    function finish() {
+      if (asyncDone) return;
+      asyncDone = true;
+      const summary = document.getElementById('summary');
+      const total = passed + failed;
+      summary.textContent = `\n${passed}/${total} passed` + (failed > 0 ? `, ${failed} FAILED` : ' — all green');
+      summary.className = failed > 0 ? 'fail' : 'pass';
+    }
+
+    // Fallback: finish after sync tests if no async tests pending
+    setTimeout(() => { if (!asyncDone) finish(); }, 6000);
+  </script>
+</body>
+</html>
