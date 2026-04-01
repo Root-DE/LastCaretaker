@@ -350,21 +350,33 @@ function buildFoodTable() {
   const wrap = document.getElementById('food-table-wrap');
   let html = '<table class="edit-table"><thead><tr><th>Food</th>';
   statCols.forEach(s => { html += `<th>${STAT_LABELS[s]}</th>`; });
-  html += '</tr></thead><tbody>';
+  html += '<th></th></tr></thead><tbody>';
   foods.forEach((f, fi) => {
-    html += `<tr><td>${esc(f.name)}</td>`;
+    html += `<tr><td><input type="text" value="${esc(f.name)}" class="edit-name-input"
+              data-type="food" data-index="${fi}" data-field="name"></td>`;
     statCols.forEach(s => {
       const si = STAT_NAMES.indexOf(s);
       html += `<td><input type="number" value="${f.stats[si] || ''}" min="0"
                 data-type="food" data-index="${fi}" data-stat="${si}"></td>`;
     });
-    html += '</tr>';
+    html += `<td><button class="btn-del-row" data-type="food" data-index="${fi}" title="Remove">✕</button></td></tr>`;
   });
   html += '</tbody></table>';
   wrap.innerHTML = html;
-  wrap.querySelectorAll('input').forEach(inp => {
+  wrap.querySelectorAll('input[data-stat]').forEach(inp => {
     inp.addEventListener('change', () => {
       foods[parseInt(inp.dataset.index)].stats[parseInt(inp.dataset.stat)] = parseFloat(inp.value) || 0;
+    });
+  });
+  wrap.querySelectorAll('input[data-field="name"]').forEach(inp => {
+    inp.addEventListener('change', () => {
+      foods[parseInt(inp.dataset.index)].name = inp.value.trim();
+    });
+  });
+  wrap.querySelectorAll('.btn-del-row[data-type="food"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      foods.splice(parseInt(btn.dataset.index), 1);
+      buildFoodTable(); buildInventory();
     });
   });
 }
@@ -375,21 +387,33 @@ function buildMemoryTable() {
   const wrap = document.getElementById('memory-table-wrap');
   let html = '<table class="edit-table"><thead><tr><th>Memory</th>';
   statCols.forEach(s => { html += `<th>${STAT_LABELS[s]}</th>`; });
-  html += '</tr></thead><tbody>';
+  html += '<th></th></tr></thead><tbody>';
   memories.forEach((m, mi) => {
-    html += `<tr><td>${esc(m.name)}</td>`;
+    html += `<tr><td><input type="text" value="${esc(m.name)}" class="edit-name-input"
+              data-type="memory" data-index="${mi}" data-field="name"></td>`;
     statCols.forEach(s => {
       const si = STAT_NAMES.indexOf(s);
       html += `<td><input type="number" value="${m.stats[si] || ''}" min="0"
                 data-type="memory" data-index="${mi}" data-stat="${si}"></td>`;
     });
-    html += '</tr>';
+    html += `<td><button class="btn-del-row" data-type="memory" data-index="${mi}" title="Remove">✕</button></td></tr>`;
   });
   html += '</tbody></table>';
   wrap.innerHTML = html;
-  wrap.querySelectorAll('input').forEach(inp => {
+  wrap.querySelectorAll('input[data-stat]').forEach(inp => {
     inp.addEventListener('change', () => {
       memories[parseInt(inp.dataset.index)].stats[parseInt(inp.dataset.stat)] = parseFloat(inp.value) || 0;
+    });
+  });
+  wrap.querySelectorAll('input[data-field="name"]').forEach(inp => {
+    inp.addEventListener('change', () => {
+      memories[parseInt(inp.dataset.index)].name = inp.value.trim();
+    });
+  });
+  wrap.querySelectorAll('.btn-del-row[data-type="memory"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      memories.splice(parseInt(btn.dataset.index), 1);
+      buildMemoryTable(); buildInventory();
     });
   });
 }
@@ -398,22 +422,65 @@ function buildHumanTable() {
   const wrap = document.getElementById('human-table-wrap');
   let html = '<table class="edit-table"><thead><tr><th>Profession</th><th>Category</th>';
   STAT_NAMES.forEach(s => { html += `<th>${STAT_LABELS[s]}</th>`; });
-  html += '</tr></thead><tbody>';
+  html += '<th></th></tr></thead><tbody>';
   humans.forEach((h, hi) => {
-    html += `<tr><td>${esc(h.profession)}</td><td>${esc(h.category)}</td>`;
+    html += `<tr><td><input type="text" value="${esc(h.profession)}" class="edit-name-input"
+              data-type="human" data-index="${hi}" data-field="profession"></td>`;
+    html += `<td><input type="text" value="${esc(h.category)}" class="edit-name-input edit-cat-input"
+              data-type="human" data-index="${hi}" data-field="category"></td>`;
     STAT_NAMES.forEach((s, si) => {
       html += `<td><input type="number" value="${h.stats[si] || ''}" min="0"
                 data-type="human" data-index="${hi}" data-stat="${si}"></td>`;
     });
-    html += '</tr>';
+    html += `<td><button class="btn-del-row" data-type="human" data-index="${hi}" title="Remove">✕</button></td></tr>`;
   });
   html += '</tbody></table>';
   wrap.innerHTML = html;
-  wrap.querySelectorAll('input').forEach(inp => {
+  wrap.querySelectorAll('input[data-stat]').forEach(inp => {
     inp.addEventListener('change', () => {
       humans[parseInt(inp.dataset.index)].stats[parseInt(inp.dataset.stat)] = parseFloat(inp.value) || 0;
     });
   });
+  wrap.querySelectorAll('input[data-field="profession"]').forEach(inp => {
+    inp.addEventListener('change', () => {
+      humans[parseInt(inp.dataset.index)].profession = inp.value.trim();
+      rebuildDropdown();
+    });
+  });
+  wrap.querySelectorAll('input[data-field="category"]').forEach(inp => {
+    inp.addEventListener('change', () => {
+      humans[parseInt(inp.dataset.index)].category = inp.value.trim();
+      rebuildDropdown();
+    });
+  });
+  wrap.querySelectorAll('.btn-del-row[data-type="human"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      humans.splice(parseInt(btn.dataset.index), 1);
+      buildHumanTable(); rebuildDropdown();
+    });
+  });
+}
+
+function rebuildDropdown() {
+  const sel = document.getElementById('profession-select');
+  sel.innerHTML = '<option value="">Choose a profession&hellip;</option>';
+  populateDropdown();
+}
+
+// ─── Add Entry ───────────────────────────────────────────────────────────────
+function addFood() {
+  foods.push({ name: 'New Food', stats: new Array(15).fill(0) });
+  buildFoodTable(); buildInventory();
+}
+
+function addMemory() {
+  memories.push({ name: 'New Memory', stats: new Array(15).fill(0) });
+  buildMemoryTable(); buildInventory();
+}
+
+function addHuman() {
+  humans.push({ profession: 'New Profession', category: 'Custom', stats: new Array(15).fill(0) });
+  buildHumanTable(); rebuildDropdown();
 }
 
 // ─── CSV Download ────────────────────────────────────────────────────────────
@@ -887,9 +954,11 @@ function displayResults(elapsed) {
   }
 
   // Matched professions
-  html += `<div class="result-section"><div class="result-section-title">Professions Matched (${matched.length})</div>
-    <div class="profession-list">`;
-  // Sort: target first, then inherent, then avoidable
+  html += `<div class="result-section"><div class="result-section-title">Professions Matched (${matched.length})</div>`;
+  if (matched.length > 1) {
+    html += `<div class="info-box" style="margin-bottom:8px">When multiple professions match, the game\u2019s selection is currently unclear (possibly random). Hover over each entry for details.</div>`;
+  }
+  html += `<div class="profession-list">`;  // Sort: target first, then inherent, then avoidable
   matched.sort((a, b) => {
     if (a.isTarget) return -1; if (b.isTarget) return 1;
     if (a.isInherent && !b.isInherent) return -1;
@@ -899,7 +968,12 @@ function displayResults(elapsed) {
   matched.forEach(m => {
     const dotCls = m.isTarget ? 'target' : m.isInherent ? 'inherent' : 'avoidable';
     const tag = m.isTarget ? 'TARGET' : m.isInherent ? 'inherent subset' : 'AVOIDABLE';
-    html += `<div class="prof-item">
+    const tooltip = m.isTarget
+      ? 'This is your selected target profession.'
+      : m.isInherent
+        ? 'This profession\u2019s requirements are a subset of your target \u2014 it will always match regardless of recipe.'
+        : 'This profession matched due to side-effect stats. A better recipe might avoid it.';
+    html += `<div class="prof-item" title="${esc(tooltip)}">
       <span class="prof-dot ${dotCls}"></span>
       <span class="prof-name">${esc(m.profession)}</span>
       <span class="prof-tag">(${esc(m.category)}) &mdash; ${tag}</span></div>`;
@@ -912,6 +986,15 @@ function displayResults(elapsed) {
 
   body.innerHTML = html;
 
+  // Show apply button if inventory is limited
+  const applyWrap = document.getElementById('apply-solution-wrap');
+  const unlimited = document.getElementById('unlimited-check').checked;
+  if (!unlimited && globalBest) {
+    applyWrap.classList.remove('hidden');
+  } else {
+    applyWrap.classList.add('hidden');
+  }
+
   // Scroll to results
   card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
@@ -923,6 +1006,37 @@ function recipeItemHTML(c) {
          onerror="this.style.display='none'">
     <span class="recipe-item-count">${c.count}×</span>
     <span class="recipe-item-name">${esc(c.name)}</span></div>`;
+}
+
+// ─── Apply Solution ──────────────────────────────────────────────────────────
+function applySolution() {
+  if (!globalBest || document.getElementById('unlimited-check').checked) return;
+
+  // Count used items from solution
+  const counts = {};
+  globalBest.items.forEach(idx => {
+    const it = items[idx];
+    const key = `${it.kind}:${it.name}`;
+    if (!counts[key]) counts[key] = { name: it.name, kind: it.kind, count: 0 };
+    counts[key].count++;
+  });
+
+  // Subtract from inventory inputs
+  for (const c of Object.values(counts)) {
+    let list, datakind;
+    if (c.kind === 'Food') { list = foods; datakind = 'food'; }
+    else { list = memories; datakind = 'memory'; }
+    const idx = list.findIndex(x => x.name === c.name);
+    if (idx < 0) continue;
+    const inp = document.querySelector(`.inv-item-input[data-kind="${datakind}"][data-index="${idx}"]`);
+    if (!inp) continue;
+    const cur = parseInt(inp.value) || 0;
+    inp.value = String(Math.max(0, cur - c.count));
+  }
+
+  saveInventory();
+  document.getElementById('apply-solution-wrap').classList.add('hidden');
+  showToast('Resources subtracted from inventory');
 }
 
 // ─── Toggle Helpers ──────────────────────────────────────────────────────────
@@ -975,6 +1089,10 @@ async function init() {
   document.getElementById('ul-food').addEventListener('change', function() { uploadCSV(this, uploadFoodCSV); });
   document.getElementById('ul-memories').addEventListener('change', function() { uploadCSV(this, uploadMemoriesCSV); });
   document.getElementById('ul-humans').addEventListener('change', function() { uploadCSV(this, uploadHumansCSV); });
+  document.getElementById('add-food').addEventListener('click', addFood);
+  document.getElementById('add-memory').addEventListener('click', addMemory);
+  document.getElementById('add-human').addEventListener('click', addHuman);
+  document.getElementById('apply-solution-btn').addEventListener('click', applySolution);
 
   setupToggle('inventory-toggle', 'inventory-body');
   setupToggle('edit-toggle', 'edit-body');

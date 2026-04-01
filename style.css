@@ -1,6 +1,11 @@
 /* === Reset & Base === */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Remove number input spinners */
+input[type=number] { -moz-appearance: textfield; }
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
 :root {
   --bg:        #0d1117;
   --bg-card:   #161b22;
@@ -128,6 +133,14 @@ a:hover { text-decoration: underline; }
 .analysis-tag.inherent { background: rgba(63,185,80,.12); color: var(--green); border: 1px solid rgba(63,185,80,.25); }
 .analysis-tag.avoidable { background: rgba(210,153,34,.08); color: var(--yellow); border: 1px solid rgba(210,153,34,.2); }
 
+/* Info box */
+.info-box {
+  font-size: .8rem; color: var(--text-dim); line-height: 1.5;
+  background: rgba(88,166,255,.06); border: 1px solid rgba(88,166,255,.15);
+  border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 12px;
+}
+.info-box strong { color: var(--text); }
+
 /* === Inventory === */
 .inventory-toolbar {
   display: flex; align-items: center; justify-content: space-between;
@@ -178,6 +191,13 @@ a:hover { text-decoration: underline; }
 .upload-label { cursor: pointer; }
 
 /* === Edit Data Tables === */
+.edit-toolbar {
+  display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px;
+  padding-bottom: 12px; border-bottom: 1px solid var(--border);
+}
+.edit-toolbar-group {
+  display: flex; align-items: center; gap: 6px;
+}
 .edit-tabs { display: flex; gap: 2px; margin-bottom: 14px; }
 .tab-btn {
   padding: 7px 14px; font-size: .82rem; border: none; border-radius: 6px 6px 0 0;
@@ -206,7 +226,27 @@ a:hover { text-decoration: underline; }
   background: var(--bg-input); border: 1px solid var(--border);
   border-radius: 3px; color: var(--text); font-size: .8rem;
 }
+.edit-name-input { width: 120px !important; text-align: left !important; }
+.edit-cat-input { width: 100px !important; }
 .edit-table input:focus { border-color: var(--accent); outline: none; }
+
+.btn-add {
+  margin-top: 8px; background: transparent; color: var(--accent);
+  border: 1px dashed var(--border); width: 100%;
+}
+.btn-add:hover { border-color: var(--accent); background: rgba(88,166,255,.06); }
+.btn-del-row {
+  background: none; border: none; color: var(--red); cursor: pointer;
+  font-size: .85rem; padding: 2px 6px; opacity: .6;
+}
+.btn-del-row:hover { opacity: 1; }
+
+/* === Apply Solution === */
+.btn-apply {
+  background: var(--green); color: #000; font-weight: 600;
+  padding: 10px 24px; border-radius: 8px; width: 100%;
+}
+.btn-apply:hover { background: #56d364; }
 
 /* === Buttons === */
 .btn {

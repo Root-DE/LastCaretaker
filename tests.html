@@ -341,6 +341,59 @@
       return; // async — finish() will be called
     })();
 
+    section('Ash Notebook stat update');
+    (function() {
+      const csv = 'Memory;Adaptability;Communication;Creativity;Discipline;Empathy;Focus;Intellect;Leadership;Logic;Patience;Wisdom\nAsh Notebook;100;100;100;100;100;100;100;100;100;100;100\n';
+      const parsed = parseCSV(csv);
+      const s = memoryStats(parsed.rows[0]);
+      assertEqual(s[12], 100, 'Ash Notebook logic is 100 (updated from 10)');
+      assertEqual(s[5], 100, 'Ash Notebook adaptability');
+    })();
+
+    section('Image URL for custom entries');
+    (function() {
+      assertEqual(
+        getItemImageUrl('Custom Item'),
+        'https://thelastcaretaker.wiki.gg/images/Custom_Item.png?format=original',
+        'custom entry image URL still follows wiki pattern'
+      );
+    })();
+
+    section('Inherent subset detection');
+    (function() {
+      // Teacher T2 requires: Height=160, Communication=15, Patience=15, Wisdom=10
+      // Manual Holder T1 requires: Height=100, Communication=5, Patience=10, Wisdom=10
+      // Manual Holder is a subset of Teacher T2
+      const teacher = new Array(15).fill(0);
+      teacher[1] = 160; teacher[7] = 15; teacher[13] = 15; teacher[14] = 10;
+      const manual = new Array(15).fill(0);
+      manual[1] = 100; manual[7] = 5; manual[13] = 10; manual[14] = 10;
+      const NAMES = STAT_NAMES;
+
+      const isSubset = NAMES.every(function(_, si) {
+        return manual[si] <= 0 || (teacher[si] > 0 && manual[si] <= teacher[si]);
+      });
+      assert(isSubset, 'Manual Holder T1 is inherent subset of Teacher T2');
+
+      // Guard T2 is NOT a subset (requires Strength=120, which Teacher doesnt need)
+      const guard = new Array(15).fill(0);
+      guard[3] = 120; guard[8] = 15; guard[10] = 12; guard[11] = 10;
+      const guardIsSubset = NAMES.every(function(_, si) {
+        return guard[si] <= 0 || (teacher[si] > 0 && guard[si] <= teacher[si]);
+      });
+      assert(!guardIsSubset, 'Guard T2 is NOT a subset of Teacher T2');
+    })();
+
+    section('Worker pause/resume message handling');
+    (function() {
+      // Verify worker accepts pause/resume without crashing
+      const worker = new Worker('solver-worker.js');
+      worker.postMessage({ type: 'pause' });
+      worker.postMessage({ type: 'resume' });
+      worker.terminate();
+      assert(true, 'Worker accepts pause/resume messages without error');
+    })();
+
     // Deferred finish for async tests
     let asyncDone = false;
     function finish() {

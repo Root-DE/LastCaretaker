@@ -37,6 +37,13 @@
             <div id="req-grid" class="req-grid"></div>
             <div id="analysis-panel" class="analysis-panel hidden">
               <h4>Profession Analysis</h4>
+              <div class="info-box" id="match-info">
+                <strong>Why multiple professions?</strong>
+                When the provided stats meet the requirements of more than one profession, multiple matches occur.
+                Professions whose requirements are a strict subset of your target will <em>always</em> match (inherent).
+                It is currently unclear which profession the game selects when multiple match &mdash; it may be random.
+                The solver minimises these collateral matches so you get the best odds.
+              </div>
               <div id="analysis-inherent" class="analysis-section"></div>
               <div id="analysis-avoidable" class="analysis-section"></div>
             </div>
@@ -75,16 +82,7 @@
           </div>
 
           <div class="inventory-downloads">
-            <span class="download-label">Download edited CSVs:</span>
-            <button class="btn btn-sm btn-outline" id="dl-humans">Humans</button>
-            <button class="btn btn-sm btn-outline" id="dl-food">Food</button>
-            <button class="btn btn-sm btn-outline" id="dl-memories">Memories</button>
-          </div>
-          <div class="inventory-downloads">
-            <span class="download-label">Upload CSVs:</span>
-            <label class="btn btn-sm btn-outline upload-label">Humans <input type="file" accept=".csv" id="ul-humans" hidden></label>
-            <label class="btn btn-sm btn-outline upload-label">Food <input type="file" accept=".csv" id="ul-food" hidden></label>
-            <label class="btn btn-sm btn-outline upload-label">Memories <input type="file" accept=".csv" id="ul-memories" hidden></label>
+            <span class="download-label">Manage CSVs via the Edit Game Data section below.</span>
           </div>
         </div>
       </section>
@@ -96,6 +94,20 @@
           <span class="toggle-icon">&#9654;</span>
         </button>
         <div class="card-body hidden" id="edit-body">
+          <div class="edit-toolbar">
+            <div class="edit-toolbar-group">
+              <span class="download-label">Download:</span>
+              <button class="btn btn-sm btn-outline" id="dl-food">Food</button>
+              <button class="btn btn-sm btn-outline" id="dl-memories">Memories</button>
+              <button class="btn btn-sm btn-outline" id="dl-humans">Humans</button>
+            </div>
+            <div class="edit-toolbar-group">
+              <span class="download-label">Upload:</span>
+              <label class="btn btn-sm btn-outline upload-label">Food <input type="file" accept=".csv" id="ul-food" hidden></label>
+              <label class="btn btn-sm btn-outline upload-label">Memories <input type="file" accept=".csv" id="ul-memories" hidden></label>
+              <label class="btn btn-sm btn-outline upload-label">Humans <input type="file" accept=".csv" id="ul-humans" hidden></label>
+            </div>
+          </div>
           <div class="edit-tabs">
             <button class="tab-btn active" data-tab="edit-food">Food Stats</button>
             <button class="tab-btn" data-tab="edit-memories">Memory Stats</button>
@@ -103,12 +115,15 @@
           </div>
           <div id="edit-food" class="edit-tab-content active">
             <div class="table-wrap" id="food-table-wrap"></div>
+            <button class="btn btn-sm btn-add" id="add-food">+ Add Food</button>
           </div>
           <div id="edit-memories" class="edit-tab-content">
             <div class="table-wrap" id="memory-table-wrap"></div>
+            <button class="btn btn-sm btn-add" id="add-memory">+ Add Memory</button>
           </div>
           <div id="edit-humans" class="edit-tab-content">
             <div class="table-wrap" id="human-table-wrap"></div>
+            <button class="btn btn-sm btn-add" id="add-human">+ Add Profession</button>
           </div>
         </div>
       </section>
@@ -157,6 +172,10 @@
       <section class="card hidden" id="results-card">
         <div class="card-header"><h2>Solution</h2></div>
         <div class="card-body" id="results-body"></div>
+        <div class="card-body hidden" id="apply-solution-wrap">
+          <button class="btn btn-apply" id="apply-solution-btn">Apply Solution &mdash; Subtract Used Resources</button>
+          <p class="hint">Subtracts recipe items from your inventory counts. Only available when not using unlimited resources.</p>
+        </div>
       </section>
 
     </main>

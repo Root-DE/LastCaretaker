@@ -1,0 +1,58 @@
+name: CI — Tests & Security
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright
+        run: npx playwright install chromium --with-deps
+
+      - name: Run tests in browser
+        run: |
+          # Start a simple HTTP server
+          npx serve . -l 8080 &
+          sleep 2
+          # Run the test page and check results
+          node run-tests.js
+
+  security:
+    name: Security scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run CodeQL-like static analysis
+        uses: github/super-linter/slim@v7
+        env:
+          VALIDATE_ALL_CODEBASE: true
+          VALIDATE_JAVASCRIPT_ES: true
+          VALIDATE_CSS: true
+          VALIDATE_HTML: true
+          DEFAULT_BRANCH: main
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LOG_LEVEL: WARN
+
+  dependency-review:
+    name: Dependency review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
