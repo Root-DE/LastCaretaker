@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Last Caretaker — Human Growth Calculator</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="https://thelastcaretaker.wiki.gg/images/Ultimate_Genesis.png?format=original" type="image/png">
+</head>
+<body>
+  <div class="app">
+
+    <!-- Header -->
+    <header class="header">
+      <div class="header-inner">
+        <h1 class="header-title">THE LAST CARETAKER</h1>
+        <p class="header-subtitle">Human Growth Specificity Calculator</p>
+        <p class="header-desc">Find the most targeted food &amp; memory recipe for any profession &mdash; minimising collateral profession matches.</p>
+      </div>
+    </header>
+
+    <main class="main">
+
+      <!-- Profession Selection -->
+      <section class="card" id="profession-card">
+        <div class="card-header">
+          <h2>Select Target Profession</h2>
+        </div>
+        <div class="card-body">
+          <select id="profession-select" class="select-profession">
+            <option value="">Choose a profession&hellip;</option>
+          </select>
+
+          <div id="requirements-panel" class="requirements-panel hidden">
+            <h3 id="req-title" class="req-title"></h3>
+            <p class="req-hint">Values = stats that food &amp; memories must provide. Click a value to edit.</p>
+            <div id="req-grid" class="req-grid"></div>
+            <div id="analysis-panel" class="analysis-panel hidden">
+              <h4>Profession Analysis</h4>
+              <div id="analysis-inherent" class="analysis-section"></div>
+              <div id="analysis-avoidable" class="analysis-section"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Resource Inventory -->
+      <section class="card" id="inventory-card">
+        <button class="card-header card-toggle" id="inventory-toggle">
+          <h2>Resource Inventory</h2>
+          <span class="toggle-icon">&#9654;</span>
+        </button>
+        <div class="card-body hidden" id="inventory-body">
+          <div class="inventory-toolbar">
+            <label class="checkbox-label">
+              <input type="checkbox" id="unlimited-check" checked>
+              <span>Assume unlimited resources</span>
+            </label>
+            <div class="toolbar-actions">
+              <button class="btn btn-sm" id="save-inv-btn" title="Save inventory to browser">Save</button>
+              <button class="btn btn-sm" id="load-inv-btn" title="Load saved inventory">Load</button>
+              <button class="btn btn-sm btn-outline" id="reset-inv-btn" title="Reset all to unlimited">Reset</button>
+            </div>
+          </div>
+
+          <div id="inventory-limited" class="hidden">
+            <div class="inventory-section">
+              <h3 class="inv-section-title">Foods</h3>
+              <div id="foods-grid" class="inventory-grid"></div>
+            </div>
+            <div class="inventory-section">
+              <h3 class="inv-section-title">Memories</h3>
+              <div id="memories-grid" class="inventory-grid"></div>
+            </div>
+          </div>
+
+          <div class="inventory-downloads">
+            <span class="download-label">Download edited CSVs:</span>
+            <button class="btn btn-sm btn-outline" id="dl-humans">Humans</button>
+            <button class="btn btn-sm btn-outline" id="dl-food">Food</button>
+            <button class="btn btn-sm btn-outline" id="dl-memories">Memories</button>
+          </div>
+          <div class="inventory-downloads">
+            <span class="download-label">Upload CSVs:</span>
+            <label class="btn btn-sm btn-outline upload-label">Humans <input type="file" accept=".csv" id="ul-humans" hidden></label>
+            <label class="btn btn-sm btn-outline upload-label">Food <input type="file" accept=".csv" id="ul-food" hidden></label>
+            <label class="btn btn-sm btn-outline upload-label">Memories <input type="file" accept=".csv" id="ul-memories" hidden></label>
+          </div>
+        </div>
+      </section>
+
+      <!-- Edit Data -->
+      <section class="card" id="edit-card">
+        <button class="card-header card-toggle" id="edit-toggle">
+          <h2>Edit Game Data</h2>
+          <span class="toggle-icon">&#9654;</span>
+        </button>
+        <div class="card-body hidden" id="edit-body">
+          <div class="edit-tabs">
+            <button class="tab-btn active" data-tab="edit-food">Food Stats</button>
+            <button class="tab-btn" data-tab="edit-memories">Memory Stats</button>
+            <button class="tab-btn" data-tab="edit-humans">Human Requirements</button>
+          </div>
+          <div id="edit-food" class="edit-tab-content active">
+            <div class="table-wrap" id="food-table-wrap"></div>
+          </div>
+          <div id="edit-memories" class="edit-tab-content">
+            <div class="table-wrap" id="memory-table-wrap"></div>
+          </div>
+          <div id="edit-humans" class="edit-tab-content">
+            <div class="table-wrap" id="human-table-wrap"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Settings -->
+      <section class="card" id="settings-card">
+        <button class="card-header card-toggle" id="settings-toggle">
+          <h2>Settings</h2>
+          <span class="toggle-icon">&#9654;</span>
+        </button>
+        <div class="card-body hidden" id="settings-body">
+          <div class="settings-grid">
+            <label>Timeout (seconds)</label>
+            <input type="number" id="timeout-input" value="120" min="5" max="600" class="input-sm">
+            <label>Worker threads</label>
+            <input type="number" id="threads-input" value="0" min="0" max="64" class="input-sm">
+            <span class="hint" style="grid-column:1/-1">Threads 0 = auto-detect. Timeout applies per worker.</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Solve Button -->
+      <div class="solve-container">
+        <button id="solve-btn" class="btn btn-solve" disabled>Find Optimal Recipe</button>
+        <button id="pause-btn" class="btn btn-pause hidden">Pause</button>
+        <button id="cancel-btn" class="btn btn-cancel hidden">Cancel</button>
+      </div>
+
+      <!-- Progress -->
+      <section class="card hidden" id="progress-card">
+        <div class="card-header"><h2>Search Progress</h2></div>
+        <div class="card-body">
+          <div class="progress-bar-wrap">
+            <div class="progress-bar" id="progress-bar"></div>
+          </div>
+          <div class="progress-stats" id="progress-stats">
+            <span id="p-depth">Depth: —</span>
+            <span id="p-nodes">Nodes: 0</span>
+            <span id="p-time">Time: 0.0s</span>
+          </div>
+          <div class="progress-best" id="progress-best"></div>
+        </div>
+      </section>
+
+      <!-- Results -->
+      <section class="card hidden" id="results-card">
+        <div class="card-header"><h2>Solution</h2></div>
+        <div class="card-body" id="results-body"></div>
+      </section>
+
+    </main>
+
+    <footer class="footer">
+      <p>Based on data from the <a href="https://thelastcaretaker.wiki.gg/wiki/Humans" target="_blank" rel="noopener">official wiki</a>
+         &bull; <a href="https://store.steampowered.com/app/2722000/The_Last_Caretaker/" target="_blank" rel="noopener">Steam</a></p>
+      <p class="footer-note">Solver: specificity-optimised IDA* with parallel Web Workers. All computation runs in your browser.</p>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
