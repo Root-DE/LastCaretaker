@@ -1,34 +1,34 @@
-Memory;Adaptability;Communication;Creativity;Discipline;Empathy;Focus;Intellect;Leadership;Logic;Patience;Wisdom
-Ash Notebook;100;100;100;100;100;100;100;100;100;100;100
-Assembly Instructions;;;;2;;;;;8;;
-Basketball;;;;;;;;;;1;
-Biology Notes;;;;;;;;;;;10
-Blueprints;10;;;;;;;;5;;
-Bowling Ball;;;;;;;;;;1;
-Bowling Pin;;;;;;;;;;1;
-Camera;;5;5;;;;;;;;
-Cards;;5;;;5;;;;;;
-Cognitive Cards;7;;;;;;;;5;;3
-Commander's Log;;;;7;;;;8;;;
-Compass;6;;;;;3;;3;;;
-Crayon;;;5;;;2;;;;;
-Encyclopedia;;;;;;;;;5;;10
-First Aid;10;;;;;;;;;;
-Guitar;;3;3;;;3;;;;;
-Love Letters;;;;;;;;;;;10
-Maps;;;;;;;;5;;;10
-Meditation;;;;;;5;;;;;
-Mirror;;;;;5;;;;;;
-Music Notes;;4;6;;;;;;;;
-Mystery Box;;;;;;;;;;5;
-Plans;;8;;7;;;;;;;
-Programming Manual;;;;;;;;;10;;
-Small Human Art;;;;;5;;;;;;
-Small Tree;;;;5;;;;;;5;
-Stopwatch;;;;;;;;;;5;
-Sudoku Book;;;;;;;;;10;;
-Survival Diagrams;10;;;;;;;5;;;
-The Art of War;;5;;;;;;10;;;
-Tommy;;;;;3;;;;;;
-Travel Journal;10;;;;;;;;;;
-Where's Tommy;;;;;;5;;;;5;
+Memory;Adaptability;Communication;Creativity;Discipline;Empathy;Focus;Intellect;Leadership;Logic;Patience;Wisdom;WorldCount
+Ash Notebook;100;100;100;100;100;100;100;100;100;100;100;10
+Assembly Instructions;;;;2;;;;;8;;;30
+Basketball;;;;;;;;;;1;;36
+Biology Notes;;;;;;;;;;;10;20
+Blueprints;10;;;;;;;;5;;;22
+Bowling Ball;;;;;;;;;;1;;16
+Bowling Pin;;;;;;;;;;1;;54
+Camera;;5;5;;;;;;;;;29
+Cards;;5;;;5;;;;;;;31
+Cognitive Cards;7;;;;;;;;5;;3;19
+Commander's Log;;;;7;;;;8;;;;31
+Compass;6;;;;;3;;3;;;;19
+Crayon;;;5;;;2;;;;;;23
+Encyclopedia;;;;;;;;;5;;10;21
+First Aid;10;;;;;;;;;;;15
+Guitar;;3;3;;;3;;;;;;31
+Love Letters;;;;;;;;;;;10;15
+Maps;;;;;;;;5;;;10;26
+Meditation;;;;;;5;;;;;;19
+Mirror;;;;;5;;;;;;;22
+Music Notes;;4;6;;;;;;;;;16
+Mystery Box;;;;;;;;;;5;;23
+Plans;;8;;7;;;;;;;;18
+Programming Manual;;;;;;;;;10;;;22
+Small Human Art;;;;;5;;;;;;;31
+Small Tree;;;;5;;;;;;5;;25
+Stopwatch;;;;;;;;;;5;;23
+Sudoku Book;;;;;;;;;10;;;18
+Survival Diagrams;10;;;;;;;5;;;;14
+The Art of War;;5;;;;;;10;;;;24
+Tommy;;;;;3;;;;;;;17
+Travel Journal;10;;;;;;;;;;;13
+Where's Tommy;;;;;;5;;;;5;;16

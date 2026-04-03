@@ -35,11 +35,19 @@ let totalPausedMs = 0;
 let solveTimer = null;
 let globalBest = null;
 let workerNodes = [];
+let workerDepths = [];
 let maxDepthReached = 0;
+let currentMaxSearchDepth = 0;
 let workersDone = 0;
+let workersExhaustive = 0;
 let numWorkers = 0;
 let inherentCount = 0;
 let currentTarget = null;
+let ecoModeActive = false;
+let cancelledByUser = false;
+let allSolutions = [];
+let solutionIndex = 0;
+let userBrowsingSolutions = false;
 
 // ─── CSV Parsing ─────────────────────────────────────────────────────────────
 function parseCSV(text) {
@@ -144,12 +152,14 @@ async function loadData() {
   foods = fCSV.rows.map(r => ({
     name: normalize(r['Food'] || ''),
     stats: foodStats(r),
+    availability: parseInt(r['TotalAvailability']) || 0,
   }));
 
   const mCSV = parseCSV(mText);
   memories = mCSV.rows.map(r => ({
     name: normalize(r['Memory'] || ''),
     stats: memoryStats(r),
+    availability: parseInt(r['WorldCount']) || 0,
   }));
 }
 
@@ -225,6 +235,36 @@ function showRequirements(idx) {
   panel.classList.remove('hidden');
 }
 
+function stripTier(name) { return name.replace(/ T\d+$/, ''); }
+function getTier(name) { const m = name.match(/ T(\d+)$/); return m ? parseInt(m[1]) : 0; }
+
+function groupByCategory(list) {
+  const cats = {};
+  list.forEach(h => {
+    if (!cats[h.category]) cats[h.category] = [];
+    cats[h.category].push(h);
+  });
+  // Sort within each category by tier
+  for (const arr of Object.values(cats)) {
+    arr.sort((a, b) => getTier(a.profession) - getTier(b.profession));
+  }
+  return cats;
+}
+
+function analysisGroupHTML(list, tagClass) {
+  const cats = groupByCategory(list);
+  let html = '';
+  for (const [cat, profs] of Object.entries(cats)) {
+    const catCls = CATEGORY_CLASS[cat] || '';
+    html += `<div class="analysis-cat-group">
+      <span class="analysis-cat-header ${catCls}">${esc(cat)}</span>
+      <span class="analysis-cat-items">${profs.map(h =>
+        `<span class="analysis-tag ${tagClass}">${esc(stripTier(h.profession))}</span>`).join('')}</span>
+    </div>`;
+  }
+  return html;
+}
+
 function showAnalysis(targetIdx) {
   const target = humans[targetIdx];
   const inherentList = [];
@@ -248,12 +288,10 @@ function showAnalysis(targetIdx) {
   const avoDiv = document.getElementById('analysis-avoidable');
 
   inhDiv.innerHTML = `<div class="analysis-label">Always matched (${inherentList.length}):</div>
-    <div class="analysis-list">${inherentList.map(h =>
-      `<span class="analysis-tag inherent">${esc(h.profession)}</span>`).join('')}</div>`;
+    <div class="analysis-grouped">${analysisGroupHTML(inherentList, 'inherent')}</div>`;
 
   avoDiv.innerHTML = `<div class="analysis-label">Can be avoided (${avoidableList.length}):</div>
-    <div class="analysis-list">${avoidableList.map(h =>
-      `<span class="analysis-tag avoidable">${esc(h.profession)}</span>`).join('')}</div>`;
+    <div class="analysis-grouped">${analysisGroupHTML(avoidableList, 'avoidable')}</div>`;
 
   ap.classList.remove('hidden');
 }
@@ -295,30 +333,101 @@ function getInvValue(kind, index) {
   return parseInt(inp.value) || 0;
 }
 
+function csvQuote(s) {
+  // Wrap in double quotes if the value contains delimiter, quotes, or newlines
+  s = String(s);
+  if (s.includes(';') || s.includes('"') || s.includes('\n')) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
 function saveInventory() {
-  const data = {};
+  const unlimited = document.getElementById('unlimited-check').checked;
+  let csv = 'Name;Kind;Count\n';
   document.querySelectorAll('.inv-item-input').forEach(inp => {
-    const key = `${inp.dataset.kind}_${inp.dataset.index}`;
-    data[key] = inp.value;
+    const kind = inp.dataset.kind;
+    const index = parseInt(inp.dataset.index);
+    const list = kind === 'food' ? foods : memories;
+    const name = list[index] ? list[index].name : '';
+    const count = inp.value === '' ? (unlimited ? '' : '0') : inp.value;
+    csv += `${csvQuote(name)};${kind};${count}\n`;
   });
-  data._unlimited = document.getElementById('unlimited-check').checked;
-  localStorage.setItem('tlc_inventory', JSON.stringify(data));
-  showToast('Inventory saved');
+  csv += `_unlimited;setting;${unlimited}\n`;
+  downloadBlob(csv, 'inventory.csv');
+  flashButton('save-inv-btn');
+  showToast('Inventory saved as CSV');
 }
 
 function loadInventory(silent) {
-  const raw = localStorage.getItem('tlc_inventory');
-  if (!raw) { if (!silent) showToast('No saved inventory found'); return; }
-  const data = JSON.parse(raw);
-  if (data._unlimited !== undefined) {
-    document.getElementById('unlimited-check').checked = data._unlimited;
-    toggleUnlimited();
+  if (silent) {
+    // On startup, try localStorage for backward compat
+    const raw = localStorage.getItem('tlc_inventory');
+    if (!raw) return;
+    try {
+      const data = JSON.parse(raw);
+      if (data._unlimited !== undefined) {
+        document.getElementById('unlimited-check').checked = data._unlimited;
+        toggleUnlimited();
+      }
+      document.querySelectorAll('.inv-item-input').forEach(inp => {
+        const key = `${inp.dataset.kind}_${inp.dataset.index}`;
+        if (data[key] !== undefined) inp.value = data[key];
+      });
+    } catch (e) {
+      // Corrupted localStorage — silently discard
+      localStorage.removeItem('tlc_inventory');
+    }
+    return;
   }
-  document.querySelectorAll('.inv-item-input').forEach(inp => {
-    const key = `${inp.dataset.kind}_${inp.dataset.index}`;
-    if (data[key] !== undefined) inp.value = data[key];
-  });
-  if (!silent) showToast('Inventory loaded');
+  // Interactive: open file picker for CSV
+  const fileInput = document.getElementById('inv-csv-upload');
+  fileInput.value = '';
+  fileInput.click();
+}
+
+function handleInvCSVUpload(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const csv = parseCSV(reader.result);
+    // Build lookup: name+kind → count
+    const lookup = {};
+    let unlimitedVal = null;
+    csv.rows.forEach(r => {
+      const name = normalize(r['Name'] || '');
+      const kind = (r['Kind'] || '').trim().toLowerCase();
+      const count = (r['Count'] || '').trim();
+      if (name === '_unlimited' && kind === 'setting') {
+        unlimitedVal = count === 'true';
+        return;
+      }
+      lookup[`${kind}:${name}`] = count;
+    });
+    if (unlimitedVal !== null) {
+      document.getElementById('unlimited-check').checked = unlimitedVal;
+      toggleUnlimited();
+    }
+    document.querySelectorAll('.inv-item-input').forEach(inp => {
+      const kind = inp.dataset.kind;
+      const index = parseInt(inp.dataset.index);
+      const list = kind === 'food' ? foods : memories;
+      const name = list[index] ? list[index].name : '';
+      const key = `${kind}:${name}`;
+      if (lookup[key] !== undefined) inp.value = lookup[key];
+    });
+    flashButton('load-inv-btn');
+    showToast('Inventory loaded from CSV');
+  };
+  reader.readAsText(file);
+}
+
+function flashButton(id) {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  btn.style.background = 'var(--green)';
+  btn.style.color = '#000';
+  setTimeout(() => { btn.style.background = ''; btn.style.color = ''; }, 600);
 }
 
 function resetInventory() {
@@ -469,12 +578,12 @@ function rebuildDropdown() {
 
 // ─── Add Entry ───────────────────────────────────────────────────────────────
 function addFood() {
-  foods.push({ name: 'New Food', stats: new Array(15).fill(0) });
+  foods.push({ name: 'New Food', stats: new Array(15).fill(0), availability: 0 });
   buildFoodTable(); buildInventory();
 }
 
 function addMemory() {
-  memories.push({ name: 'New Memory', stats: new Array(15).fill(0) });
+  memories.push({ name: 'New Memory', stats: new Array(15).fill(0), availability: 0 });
   buildMemoryTable(); buildInventory();
 }
 
@@ -489,9 +598,9 @@ function downloadFoodCSV() {
     {key:'Height',si:1},{key:'Intellect',si:4},{key:'Life Exp',si:2},
     {key:'Strength',si:3},{key:'Weight',si:0},
   ];
-  let csv = 'Food;' + foodStatCols.map(c=>c.key).join(';') + '\n';
+  let csv = 'Food;' + foodStatCols.map(c=>c.key).join(';') + ';TotalAvailability\n';
   foods.forEach(f => {
-    csv += f.name + ';' + foodStatCols.map(c => f.stats[c.si] || '').join(';') + '\n';
+    csv += f.name + ';' + foodStatCols.map(c => f.stats[c.si] || '').join(';') + ';' + (f.availability || '') + '\n';
   });
   downloadBlob(csv, 'Food.csv');
 }
@@ -503,9 +612,9 @@ function downloadMemoriesCSV() {
     {key:'Intellect',si:4},{key:'Leadership',si:11},{key:'Logic',si:12},
     {key:'Patience',si:13},{key:'Wisdom',si:14},
   ];
-  let csv = 'Memory;' + memCols.map(c=>c.key).join(';') + '\n';
+  let csv = 'Memory;' + memCols.map(c=>c.key).join(';') + ';WorldCount\n';
   memories.forEach(m => {
-    csv += m.name + ';' + memCols.map(c => m.stats[c.si] || '').join(';') + '\n';
+    csv += m.name + ';' + memCols.map(c => m.stats[c.si] || '').join(';') + ';' + (m.availability || '') + '\n';
   });
   downloadBlob(csv, 'Memories.csv');
 }
@@ -529,8 +638,10 @@ function downloadBlob(content, filename) {
   const a = document.createElement('a');
   a.href = url; a.download = filename;
   document.body.appendChild(a); a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 100);
 }
 
 // ─── CSV Upload ──────────────────────────────────────────────────────────────
@@ -550,6 +661,7 @@ function uploadFoodCSV(text) {
   foods = csv.rows.map(r => ({
     name: normalize(r['Food'] || ''),
     stats: foodStats(r),
+    availability: parseInt(r['TotalAvailability']) || 0,
   }));
   buildInventory();
   buildEditTables();
@@ -562,6 +674,7 @@ function uploadMemoriesCSV(text) {
   memories = csv.rows.map(r => ({
     name: normalize(r['Memory'] || ''),
     stats: memoryStats(r),
+    availability: parseInt(r['WorldCount']) || 0,
   }));
   buildInventory();
   buildEditTables();
@@ -608,10 +721,10 @@ function showToast(msg) {
 function buildItems() {
   items = [];
   foods.forEach(f => {
-    if (f.stats.some(v => v > 0)) items.push({ name: f.name, kind: 'Food', stats: f.stats.slice() });
+    if (f.stats.some(v => v > 0)) items.push({ name: f.name, kind: 'Food', stats: f.stats.slice(), availability: f.availability || 0 });
   });
   memories.forEach(m => {
-    if (m.stats.some(v => v > 0)) items.push({ name: m.name, kind: 'Memory', stats: m.stats.slice() });
+    if (m.stats.some(v => v > 0)) items.push({ name: m.name, kind: 'Memory', stats: m.stats.slice(), availability: m.availability || 0 });
   });
 }
 
@@ -631,6 +744,10 @@ function startSolve() {
 
   const requiredSet = new Array(15).fill(false);
   targetReqs.forEach(([si]) => { requiredSet[si] = true; });
+
+  // Pre-filter: remove items that don't contribute to any required stat
+  items = items.filter(it => targetReqs.some(([si]) => it.stats[si] > 0));
+  if (items.length === 0) { showToast('No items contribute to required stats'); return; }
 
   // Sort items by specificity (required contribution / (1 + extra contribution))
   items.sort((a, b) => {
@@ -655,10 +772,10 @@ function startSolve() {
     }
   }
 
-  // Lower bound
+  // Lower bound (strict >: need total > req, i.e. total >= req+1)
   let initialLb = 1;
   for (const [si, val] of targetReqs) {
-    initialLb = Math.max(initialLb, Math.ceil(val / bestPerStat[si]));
+    initialLb = Math.max(initialLb, Math.ceil((val + 1) / bestPerStat[si]));
   }
 
   // Inherent subset count
@@ -685,13 +802,27 @@ function startSolve() {
   // Flatten item stats for workers
   const itemStatsForWorker = items.map(it => it.stats);
   const humanStatsForWorker = humans.map(h => h.stats);
+  const availabilityForWorker = items.map(it => it.availability || 0);
 
-  const timeoutSec = parseInt(document.getElementById('timeout-input').value) || 120;
+  const timeoutSec = parseInt(document.getElementById('timeout-input').value) || 30;
   let threads = parseInt(document.getElementById('threads-input').value) || 0;
   if (threads <= 0) threads = Math.max(1, (navigator.hardwareConcurrency || 4) - 1);
   numWorkers = Math.min(threads, items.length);
 
-  const maxSearchDepth = initialLb + 20;
+  const depthSetting = parseInt(document.getElementById('depth-input').value) || 0;
+  const maxSearchDepth = depthSetting > 0 ? depthSetting : 30;
+  currentMaxSearchDepth = maxSearchDepth;
+
+  // Clamp maxCounts to maximum useful repetitions per item (strict >: need total > val)
+  for (let i = 0; i < items.length; i++) {
+    let maxUseful = 0;
+    for (const [si, val] of targetReqs) {
+      if (items[i].stats[si] > 0) {
+        maxUseful = Math.max(maxUseful, Math.ceil((val + 1) / items[i].stats[si]));
+      }
+    }
+    if (maxUseful > 0) maxCounts[i] = Math.min(maxCounts[i], maxUseful);
+  }
 
   // Split first-item indices across workers (interleaved for load balancing)
   const workerChunks = Array.from({ length: numWorkers }, () => []);
@@ -704,9 +835,16 @@ function startSolve() {
   paused = false;
   totalPausedMs = 0;
   globalBest = null;
+  allSolutions = [];
+  solutionIndex = 0;
+  userBrowsingSolutions = false;
+  ecoModeActive = document.getElementById('eco-mode-check').checked;
+  cancelledByUser = false;
   workerNodes = new Array(numWorkers).fill(0);
+  workerDepths = new Array(numWorkers).fill(0);
   maxDepthReached = 0;
   workersDone = 0;
+  workersExhaustive = 0;
   document.getElementById('solve-btn').classList.add('hidden');
   document.getElementById('cancel-btn').classList.remove('hidden');
   document.getElementById('pause-btn').classList.remove('hidden');
@@ -741,6 +879,8 @@ function startSolve() {
       maxSearchDepth,
       maxCounts,
       timeoutSec,
+      ecoMode: ecoModeActive,
+      availability: availabilityForWorker,
     });
     workers.push(worker);
   }
@@ -754,30 +894,43 @@ function handleWorkerMsg(workerIdx, msg) {
       break;
     case 'newBest':
       if (!globalBest || msg.solution.collateral < globalBest.collateral ||
-          (msg.solution.collateral === globalBest.collateral && msg.solution.items.length < globalBest.items.length)) {
+          (msg.solution.collateral === globalBest.collateral && (ecoModeActive
+            ? (msg.solution.resourceCost || 0) < (globalBest.resourceCost ?? Infinity)
+            : msg.solution.items.length < globalBest.items.length))) {
         globalBest = msg.solution;
-        // Live results display
-        const liveElapsed = (performance.now() - solveStart) / 1000;
-        displayResults(liveElapsed);
-        if (globalBest.collateral <= inherentCount) {
+        allSolutions.push(msg.solution);
+        if (!userBrowsingSolutions) {
+          solutionIndex = allSolutions.length - 1;
+          // Live results display (no scroll)
+          const liveElapsed = (performance.now() - solveStart) / 1000;
+          displayResults(liveElapsed, false);
+        } else {
+          // User is browsing older solutions — just update the nav counter
+          updateSolutionNav();
+        }
+        if (globalBest.collateral <= inherentCount && !ecoModeActive) {
           // Perfect — stop all workers
           workers.forEach(w => w.postMessage({ type: 'stop' }));
         }
       }
       break;
     case 'depthDone':
+      workerDepths[workerIdx] = msg.depth;
       if (msg.depth > maxDepthReached) maxDepthReached = msg.depth;
       workerNodes[workerIdx] = msg.nodes;
       break;
     case 'done':
       if (msg.solution) {
         if (!globalBest || msg.solution.collateral < globalBest.collateral ||
-            (msg.solution.collateral === globalBest.collateral && msg.solution.items.length < globalBest.items.length)) {
+            (msg.solution.collateral === globalBest.collateral && (ecoModeActive
+              ? (msg.solution.resourceCost || 0) < (globalBest.resourceCost ?? Infinity)
+              : msg.solution.items.length < globalBest.items.length))) {
           globalBest = msg.solution;
         }
       }
       workerNodes[workerIdx] = msg.nodes;
       workersDone++;
+      if (msg.exhaustive) workersExhaustive++;
       if (workersDone >= numWorkers) {
         finishSolve();
       }
@@ -786,6 +939,7 @@ function handleWorkerMsg(workerIdx, msg) {
 }
 
 function cancelSolve() {
+  cancelledByUser = true;
   workers.forEach(w => w.postMessage({ type: 'stop' }));
   if (paused) {
     paused = false;
@@ -828,10 +982,38 @@ function finishSolve() {
   // Final progress update
   const elapsed = (performance.now() - solveStart) / 1000;
   document.getElementById('progress-bar').style.width = '100%';
-  updateProgressDisplay(elapsed);
+  const totalNodes = workerNodes.reduce((a, b) => a + b, 0);
+  document.getElementById('p-time').textContent = `Time: ${elapsed.toFixed(1)}s`;
+  document.getElementById('p-nodes').textContent = `Nodes: ${formatNum(totalNodes)}`;
+  const depthCompleted = maxDepthReached > 0 ? maxDepthReached : 0;
+  let depthLabel;
+  if (workersExhaustive >= numWorkers) {
+    depthLabel = `Depth: ${depthCompleted} / ${currentMaxSearchDepth} \u2014 search complete`;
+  } else if (globalBest && globalBest.collateral <= inherentCount) {
+    depthLabel = `Depth: ${depthCompleted} / ${currentMaxSearchDepth} \u2014 optimal found, stopped early`;
+  } else if (cancelledByUser) {
+    depthLabel = `Depth: ${depthCompleted} / ${currentMaxSearchDepth} \u2014 cancelled`;
+  } else {
+    // Time limit: workers were searching depth depthCompleted+1 but didn't finish it
+    const searchingDepth = depthCompleted + 1;
+    depthLabel = `Depth: ${depthCompleted} / ${currentMaxSearchDepth} fully explored (interrupted at depth ${searchingDepth})`;
+  }
+  document.getElementById('p-depth').textContent = depthLabel;
+  if (globalBest) {
+    let bestText = `Best: ${globalBest.items.length} items, ${globalBest.collateral} profession${globalBest.collateral !== 1 ? 's' : ''} matched`;
+    if (ecoModeActive && globalBest.resourceCost != null) {
+      bestText += ` (${(globalBest.resourceCost * 100).toFixed(1)}% resource cost)`;
+    }
+    document.getElementById('progress-best').textContent = bestText;
+  }
 
-  // Show results
-  displayResults(elapsed);
+  // Show final (best) results — reset to latest solution
+  userBrowsingSolutions = false;
+  if (allSolutions.length > 0) {
+    solutionIndex = allSolutions.length - 1;
+    globalBest = allSolutions[solutionIndex];
+  }
+  displayResults(elapsed, true);
 }
 
 function updateProgress() {
@@ -842,16 +1024,30 @@ function updateProgress() {
 
 function updateProgressDisplay(elapsed) {
   if (!elapsed) elapsed = (performance.now() - solveStart) / 1000;
-  const timeout = parseInt(document.getElementById('timeout-input').value) || 120;
-  const pct = Math.min(100, (elapsed / timeout) * 100);
+  const timeout = parseInt(document.getElementById('timeout-input').value) || 30;
+  let pausedMs = totalPausedMs;
+  if (paused) pausedMs += performance.now() - pauseStart;
+  const effectiveElapsed = elapsed - pausedMs / 1000;
+  const pct = Math.min(100, (Math.max(0, effectiveElapsed) / timeout) * 100);
   document.getElementById('progress-bar').style.width = pct + '%';
   document.getElementById('p-time').textContent = `Time: ${elapsed.toFixed(1)}s`;
-  document.getElementById('p-depth').textContent = maxDepthReached > 0 ? `Depth: ${maxDepthReached}` : 'Depth: —';
+  const activeDepths = workerDepths.filter(d => d > 0);
+  if (activeDepths.length > 0) {
+    const minD = Math.min(...activeDepths);
+    const maxD = Math.max(...activeDepths);
+    const depthStr = minD === maxD ? `${minD}` : `${minD}\u2013${maxD}`;
+    document.getElementById('p-depth').textContent = `Depth: ${depthStr} / ${currentMaxSearchDepth}`;
+  } else {
+    document.getElementById('p-depth').textContent = `Depth: 1 / ${currentMaxSearchDepth}`;
+  }
   const totalNodes = workerNodes.reduce((a, b) => a + b, 0);
   document.getElementById('p-nodes').textContent = `Nodes: ${formatNum(totalNodes)}`;
   if (globalBest) {
-    document.getElementById('progress-best').textContent =
-      `Current best: ${globalBest.items.length} items, ${globalBest.collateral} profession${globalBest.collateral !== 1 ? 's' : ''} matched`;
+    let bestText = `Current best: ${globalBest.items.length} items, ${globalBest.collateral} profession${globalBest.collateral !== 1 ? 's' : ''} matched`;
+    if (ecoModeActive && globalBest.resourceCost != null) {
+      bestText += ` (${(globalBest.resourceCost * 100).toFixed(1)}% resource cost)`;
+    }
+    document.getElementById('progress-best').textContent = bestText;
   }
 }
 
@@ -863,14 +1059,18 @@ function formatNum(n) {
 }
 
 // ─── Results Display ─────────────────────────────────────────────────────────
-function displayResults(elapsed) {
+function displayResults(elapsed, scroll) {
   const body = document.getElementById('results-body');
   const card = document.getElementById('results-card');
   card.classList.remove('hidden');
 
   if (!globalBest) {
+    const allExhaustive = workersExhaustive >= numWorkers;
+    const msg = allExhaustive
+      ? 'No solution exists within search depth ' + currentMaxSearchDepth + ' (search space fully explored)'
+      : 'No solution found within time limit';
     body.innerHTML = `<div class="result-summary no-solution">
-      <span class="result-badge">No solution found within time limit</span></div>`;
+      <span class="result-badge">${esc(msg)}</span></div>`;
     return;
   }
 
@@ -882,7 +1082,7 @@ function displayResults(elapsed) {
   sol.items.forEach(idx => {
     const it = items[idx];
     const key = `${it.kind}:${it.name}`;
-    if (!counts[key]) counts[key] = { name: it.name, kind: it.kind, count: 0 };
+    if (!counts[key]) counts[key] = { name: it.name, kind: it.kind, count: 0, availability: it.availability || 0, stats: it.stats };
     counts[key].count++;
   });
 
@@ -901,7 +1101,7 @@ function displayResults(elapsed) {
   humans.forEach((h, hi) => {
     let valid = true;
     for (let s = 0; s < 15; s++) {
-      if (h.stats[s] > 0 && sol.total[s] < h.stats[s]) { valid = false; break; }
+      if (h.stats[s] > 0 && sol.total[s] <= h.stats[s]) { valid = false; break; }
     }
     if (valid) {
       const isTarget = hi === currentTarget;
@@ -911,8 +1111,12 @@ function displayResults(elapsed) {
     }
   });
 
+  let badgeExtra = '';
+  if (ecoModeActive && sol.resourceCost != null) {
+    badgeExtra = ` &mdash; <span class="resource-cost-badge" title="Resource cost: total items used divided by their world availability. Lower means less impact on shared resources.">${(sol.resourceCost * 100).toFixed(1)}% resource cost</span>`;
+  }
   let html = `<div class="result-summary">
-    <span class="result-badge">${sol.items.length} item${sol.items.length !== 1 ? 's' : ''} &mdash; matches ${sol.collateral} profession${sol.collateral !== 1 ? 's' : ''}</span>
+    <span class="result-badge">${sol.items.length} item${sol.items.length !== 1 ? 's' : ''} &mdash; matches ${sol.collateral} profession${sol.collateral !== 1 ? 's' : ''}${badgeExtra}</span>
   </div>`;
 
   // Recipe
@@ -927,13 +1131,32 @@ function displayResults(elapsed) {
       <div class="recipe-items">${memItems.map(c => recipeItemHTML(c)).join('')}</div></div>`;
   }
 
+  // Build per-stat item breakdown for tooltips
+  const statBreakdown = {};
+  sol.items.forEach(idx => {
+    const it = items[idx];
+    for (let si = 0; si < 15; si++) {
+      if (it.stats[si] !== 0) {
+        if (!statBreakdown[si]) statBreakdown[si] = {};
+        if (!statBreakdown[si][it.name]) statBreakdown[si][it.name] = 0;
+        statBreakdown[si][it.name] += it.stats[si];
+      }
+    }
+  });
+
   // Stats
   html += `<div class="result-section"><div class="result-section-title">Stats Achieved</div><table class="stats-table">`;
   targetReqs.forEach(([si, req]) => {
     const val = sol.total[si];
-    const ok = val >= req;
-    const cls = ok ? (val > req ? 'stat-over' : 'stat-ok') : 'stat-miss';
-    html += `<tr>
+    const ok = val > req;
+    const cls = ok ? (val > req + 1 ? 'stat-over' : 'stat-ok') : 'stat-miss';
+    // Build breakdown tooltip
+    let breakdown = '';
+    if (statBreakdown[si]) {
+      const parts = Object.entries(statBreakdown[si]).map(([name, v]) => `${name}: +${v}`);
+      breakdown = esc(parts.join('\n'));
+    }
+    html += `<tr title="${breakdown}">
       <td class="stat-name">${STAT_LABELS[STAT_NAMES[si]]}</td>
       <td class="stat-val ${cls}">${Math.round(val)}</td>
       <td>/ ${Math.round(req)}</td>
@@ -954,31 +1177,42 @@ function displayResults(elapsed) {
   }
 
   // Matched professions
-  html += `<div class="result-section"><div class="result-section-title">Professions Matched (${matched.length})</div>`;
-  if (matched.length > 1) {
-    html += `<div class="info-box" style="margin-bottom:8px">When multiple professions match, the game\u2019s selection is currently unclear (possibly random). Hover over each entry for details.</div>`;
-  }
-  html += `<div class="profession-list">`;  // Sort: target first, then inherent, then avoidable
   matched.sort((a, b) => {
     if (a.isTarget) return -1; if (b.isTarget) return 1;
     if (a.isInherent && !b.isInherent) return -1;
     if (!a.isInherent && b.isInherent) return 1;
     return 0;
   });
-  matched.forEach(m => {
-    const dotCls = m.isTarget ? 'target' : m.isInherent ? 'inherent' : 'avoidable';
-    const tag = m.isTarget ? 'TARGET' : m.isInherent ? 'inherent subset' : 'AVOIDABLE';
-    const tooltip = m.isTarget
-      ? 'This is your selected target profession.'
-      : m.isInherent
-        ? 'This profession\u2019s requirements are a subset of your target \u2014 it will always match regardless of recipe.'
-        : 'This profession matched due to side-effect stats. A better recipe might avoid it.';
-    html += `<div class="prof-item" title="${esc(tooltip)}">
-      <span class="prof-dot ${dotCls}"></span>
-      <span class="prof-name">${esc(m.profession)}</span>
-      <span class="prof-tag">(${esc(m.category)}) &mdash; ${tag}</span></div>`;
+
+  const targetAndInherent = matched.filter(m => m.isTarget || m.isInherent);
+  const avoidable = matched.filter(m => !m.isTarget && !m.isInherent);
+
+  html += `<div class="result-section"><div class="result-section-title">Professions Matched (${matched.length})</div>`;
+  if (matched.length > 1) {
+    html += `<div class="info-box" style="margin-bottom:8px">When multiple professions match, the game\u2019s selection is currently unclear (possibly random). Hover over each entry for details.</div>`;
+  }
+
+  // Target + inherent professions (always visible)
+  html += `<div class="profession-list">`;
+  targetAndInherent.forEach(m => {
+    html += profItemHTML(m);
   });
-  html += '</div></div>';
+  html += '</div>';
+
+  // Avoidable professions (collapsible if > 3)
+  if (avoidable.length > 0) {
+    const collapsed = avoidable.length > 3;
+    html += `<button class="avoidable-toggle${collapsed ? '' : ' open'}" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('collapsed')">
+      <span class="avoidable-toggle-icon">\u25B6</span>
+      Can be avoided (${avoidable.length})
+    </button>`;
+    html += `<div class="profession-list avoidable-list${collapsed ? ' collapsed' : ''}">`;
+    avoidable.forEach(m => {
+      html += profItemHTML(m);
+    });
+    html += '</div>';
+  }
+  html += '</div>';
 
   // Search info
   const totalN = workerNodes.reduce((a, b) => a + b, 0);
@@ -995,17 +1229,70 @@ function displayResults(elapsed) {
     applyWrap.classList.add('hidden');
   }
 
-  // Scroll to results
-  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  // Scroll to results (only on explicit request, e.g. final results)
+  if (scroll) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  // Update solution navigation header
+  updateSolutionNav();
+}
+
+function updateSolutionNav() {
+  const navEl = document.getElementById('solution-nav');
+  if (!navEl) return;
+  if (allSolutions.length <= 1) {
+    navEl.classList.add('hidden');
+    return;
+  }
+  navEl.classList.remove('hidden');
+  document.getElementById('sol-nav-label').textContent = `${solutionIndex + 1} / ${allSolutions.length}`;
+  document.getElementById('sol-prev').disabled = solutionIndex <= 0;
+  document.getElementById('sol-next').disabled = solutionIndex >= allSolutions.length - 1;
+}
+
+function navigateSolution(delta) {
+  const newIdx = solutionIndex + delta;
+  if (newIdx < 0 || newIdx >= allSolutions.length) return;
+  solutionIndex = newIdx;
+  userBrowsingSolutions = solutionIndex < allSolutions.length - 1;
+  globalBest = allSolutions[solutionIndex];
+  const elapsed = (performance.now() - solveStart) / 1000;
+  displayResults(elapsed, false);
 }
 
 function recipeItemHTML(c) {
   const imgUrl = getItemImageUrl(c.name);
-  return `<div class="recipe-item">
+  // Build stat tooltip
+  const statParts = [];
+  if (c.stats) {
+    c.stats.forEach((v, si) => {
+      if (v !== 0) statParts.push(`${STAT_LABELS[STAT_NAMES[si]]}: ${v}`);
+    });
+  }
+  const tooltip = statParts.length > 0 ? esc(statParts.join('\n')) : '';
+  let pctHtml = '';
+  if (ecoModeActive && c.availability > 0) {
+    const pct = (c.count / c.availability * 100).toFixed(1);
+    pctHtml = `<span class="recipe-item-pct" title="Using ${c.count} of ${Math.round(c.availability)} available worldwide (${pct}%)">(${pct}%)</span>`;
+  }
+  return `<div class="recipe-item" title="${tooltip}">
     <img class="recipe-item-img" src="${imgUrl}" alt="${esc(c.name)}"
          onerror="this.style.display='none'">
     <span class="recipe-item-count">${c.count}×</span>
-    <span class="recipe-item-name">${esc(c.name)}</span></div>`;
+    <span class="recipe-item-name">${esc(c.name)}</span>${pctHtml}</div>`;
+}
+
+function profItemHTML(m) {
+  const dotCls = m.isTarget ? 'target' : m.isInherent ? 'inherent' : 'avoidable';
+  const tag = m.isTarget ? 'TARGET' : m.isInherent ? 'inherent subset' : 'AVOIDABLE';
+  const tooltip = m.isTarget
+    ? 'This is your selected target profession.'
+    : m.isInherent
+      ? 'This profession\u2019s requirements are a subset of your target \u2014 it will always match regardless of recipe.'
+      : 'This profession matched due to side-effect stats. A better recipe might avoid it.';
+  return `<div class="prof-item" title="${esc(tooltip)}">
+    <span class="prof-dot ${dotCls}"></span>
+    <span class="prof-name">${esc(m.profession)}</span>
+    <span class="prof-tag">(${esc(m.category)}) &mdash; ${tag}</span></div>`;
 }
 
 // ─── Apply Solution ──────────────────────────────────────────────────────────
@@ -1082,6 +1369,7 @@ async function init() {
   document.getElementById('unlimited-check').addEventListener('change', toggleUnlimited);
   document.getElementById('save-inv-btn').addEventListener('click', saveInventory);
   document.getElementById('load-inv-btn').addEventListener('click', () => loadInventory());
+  document.getElementById('inv-csv-upload').addEventListener('change', function() { handleInvCSVUpload(this.files[0]); });
   document.getElementById('reset-inv-btn').addEventListener('click', resetInventory);
   document.getElementById('dl-food').addEventListener('click', downloadFoodCSV);
   document.getElementById('dl-memories').addEventListener('click', downloadMemoriesCSV);
@@ -1093,6 +1381,8 @@ async function init() {
   document.getElementById('add-memory').addEventListener('click', addMemory);
   document.getElementById('add-human').addEventListener('click', addHuman);
   document.getElementById('apply-solution-btn').addEventListener('click', applySolution);
+  document.getElementById('sol-prev').addEventListener('click', () => navigateSolution(-1));
+  document.getElementById('sol-next').addEventListener('click', () => navigateSolution(1));
 
   setupToggle('inventory-toggle', 'inventory-body');
   setupToggle('edit-toggle', 'edit-body');
@@ -1110,6 +1400,12 @@ async function init() {
   if (localStorage.getItem('tlc_inventory')) {
     loadInventory(true);
   }
+
+  // Load version
+  fetch('version.json').then(r => r.json()).then(v => {
+    const el = document.getElementById('footer-version');
+    if (el && v.build) el.textContent = `build ${v.build}`;
+  }).catch(() => {});
 }
 
 document.addEventListener('DOMContentLoaded', init);

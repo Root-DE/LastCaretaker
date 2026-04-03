@@ -127,6 +127,10 @@ a:hover { text-decoration: underline; }
 .analysis-section { margin-bottom: 10px; }
 .analysis-label { font-size: .8rem; color: var(--text-dim); margin-bottom: 4px; }
 .analysis-list { display: flex; flex-wrap: wrap; gap: 4px; }
+.analysis-grouped { display: flex; flex-direction: column; gap: 6px; }
+.analysis-cat-group { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.analysis-cat-header { font-size: .78rem; font-weight: 600; min-width: 85px; }
+.analysis-cat-items { display: flex; flex-wrap: wrap; gap: 4px; }
 .analysis-tag {
   font-size: .75rem; padding: 2px 8px; border-radius: 12px;
 }
@@ -189,6 +193,11 @@ a:hover { text-decoration: underline; }
 }
 .download-label { font-size: .82rem; color: var(--text-dim); }
 .upload-label { cursor: pointer; }
+.file-hidden {
+  position: absolute; width: 1px; height: 1px; padding: 0;
+  margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0);
+  white-space: nowrap; border: 0;
+}
 
 /* === Edit Data Tables === */
 .edit-toolbar {
@@ -303,7 +312,6 @@ a:hover { text-decoration: underline; }
 .progress-best {
   margin-top: 8px; font-size: .9rem; color: var(--yellow); min-height: 1.5em;
 }
-
 /* === Results === */
 .result-summary {
   display: flex; align-items: center; gap: 12px; margin-bottom: 18px;
@@ -364,6 +372,58 @@ a:hover { text-decoration: underline; }
   font-size: .82rem; color: var(--text-dim);
 }
 
+/* === Eco Mode Toggle === */
+.eco-toggle-wrap { display: flex; justify-content: center; padding: 0 0 2px; }
+.eco-toggle {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  font-size: .85rem; color: var(--text-dim); user-select: none;
+}
+.eco-toggle input { display: none; }
+.eco-slider {
+  position: relative; width: 34px; height: 18px;
+  background: var(--border); border-radius: 9px; transition: background .2s;
+}
+.eco-slider::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 14px; height: 14px; background: var(--text-dim);
+  border-radius: 50%; transition: transform .2s, background .2s;
+}
+.eco-toggle input:checked + .eco-slider { background: rgba(63,185,80,.25); }
+.eco-toggle input:checked + .eco-slider::after { transform: translateX(16px); background: var(--green); }
+.eco-toggle input:checked ~ .eco-leaf { color: var(--green); }
+.eco-toggle input:checked ~ .eco-text { color: var(--green); }
+.eco-leaf { display: inline-flex; color: var(--text-dim); transition: color .2s; }
+.eco-text { transition: color .2s; }
+.recipe-item-pct { font-size: .75rem; color: var(--text-dim); margin-left: 2px; }
+
+/* === Solution Navigation === */
+.results-header { display: flex; align-items: center; justify-content: space-between; }
+.solution-nav { display: flex; align-items: center; gap: 6px; }
+.btn-sol-nav {
+  background: rgba(88,166,255,.1); border: 1px solid rgba(88,166,255,.2);
+  color: var(--accent); border-radius: 4px; padding: 2px 8px;
+  font-size: 1rem; cursor: pointer; line-height: 1;
+  transition: background .15s;
+}
+.btn-sol-nav:hover:not(:disabled) { background: rgba(88,166,255,.2); }
+.btn-sol-nav:disabled { opacity: .3; cursor: not-allowed; }
+.sol-nav-label { font-size: .82rem; color: var(--text-dim); min-width: 40px; text-align: center; }
+
+/* === Collapsible Avoidable Professions === */
+.avoidable-toggle {
+  display: flex; align-items: center; gap: 6px;
+  background: none; border: none; color: var(--yellow);
+  font-size: .82rem; cursor: pointer; padding: 6px 0 4px;
+  font-weight: 600; transition: color .15s;
+}
+.avoidable-toggle:hover { color: #e3b341; }
+.avoidable-toggle-icon { font-size: .7rem; display: inline-block; transition: transform .2s; }
+.avoidable-toggle.open .avoidable-toggle-icon { transform: rotate(90deg); }
+.avoidable-list.collapsed { display: none; }
+
+/* === Resource Cost Badge === */
+.resource-cost-badge { cursor: help; border-bottom: 1px dotted var(--text-dim); }
+
 /* === Footer === */
 .footer {
   text-align: center; padding: 32px 0 16px;
@@ -371,6 +431,7 @@ a:hover { text-decoration: underline; }
 }
 .footer p { margin-bottom: 4px; }
 .footer-note { font-size: .72rem; }
+.footer-version { font-size: .68rem; color: var(--border-hl); margin-top: 4px; }
 
 /* === Category Colors === */
 .cat-engineer       { color: #f0883e; }
