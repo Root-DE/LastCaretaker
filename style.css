@@ -421,6 +421,18 @@ a:hover { text-decoration: underline; }
 .avoidable-toggle.open .avoidable-toggle-icon { transform: rotate(90deg); }
 .avoidable-list.collapsed { display: none; }
 
+/* Analysis notes */
+.analysis-note {
+  font-size: .76rem; color: var(--text-dim); line-height: 1.45;
+  margin-top: 6px; padding: 6px 10px;
+  background: rgba(255,255,255,.03); border-left: 2px solid var(--border-hl);
+  border-radius: 0 4px 4px 0;
+}
+.analysis-note-tip { border-left-color: var(--yellow); }
+
+/* Timeout hint in results */
+.timeout-hint { border-left: 3px solid var(--yellow); background: rgba(210,153,34,.06); }
+
 /* === Resource Cost Badge === */
 .resource-cost-badge { cursor: help; border-bottom: 1px dotted var(--text-dim); }
 
