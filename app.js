@@ -287,11 +287,29 @@ function showAnalysis(targetIdx) {
   const inhDiv = document.getElementById('analysis-inherent');
   const avoDiv = document.getElementById('analysis-avoidable');
 
+  // Identify lower-tier professions in the same category that are inherent subsets
+  const targetCat = target.category;
+  const lowerTierInherent = inherentList.filter(h =>
+    h.profession !== target.profession && h.category === targetCat);
+
+  let inherentNote = '';
+  if (lowerTierInherent.length > 0) {
+    inherentNote = `<div class="analysis-note">ℹ️ Lower-tier professions in the same category (${esc(targetCat)}) are always inherent matches —
+      any recipe that unlocks a higher tier will also satisfy the lower tiers. This cannot be avoided.</div>`;
+  }
+
+  let avoidableNote = '';
+  if (avoidableList.length > 0) {
+    avoidableNote = `<div class="analysis-note analysis-note-tip">⏱ ${avoidableList.length} profession${avoidableList.length !== 1 ? 's' : ''} can potentially be avoided.
+      The solver needs enough time to find the most specific recipe —
+      if results still show avoidable matches, try increasing the <strong>Timeout</strong> in Settings.</div>`;
+  }
+
   inhDiv.innerHTML = `<div class="analysis-label">Always matched (${inherentList.length}):</div>
-    <div class="analysis-grouped">${analysisGroupHTML(inherentList, 'inherent')}</div>`;
+    <div class="analysis-grouped">${analysisGroupHTML(inherentList, 'inherent')}</div>${inherentNote}`;
 
   avoDiv.innerHTML = `<div class="analysis-label">Can be avoided (${avoidableList.length}):</div>
-    <div class="analysis-grouped">${analysisGroupHTML(avoidableList, 'avoidable')}</div>`;
+    <div class="analysis-grouped">${analysisGroupHTML(avoidableList, 'avoidable')}</div>${avoidableNote}`;
 
   ap.classList.remove('hidden');
 }
@@ -1211,6 +1229,16 @@ function displayResults(elapsed, scroll) {
       html += profItemHTML(m);
     });
     html += '</div>';
+
+    // If search was cut short by timeout, suggest increasing it
+    const wasExhaustive = workersExhaustive >= numWorkers;
+    if (!wasExhaustive && !cancelledByUser) {
+      html += `<div class="info-box timeout-hint" style="margin-top:8px">
+        \u23F1 The search timed out before fully exploring all possibilities.
+        A longer <strong>Timeout</strong> (Settings) may find a more specific recipe that avoids
+        some of these ${avoidable.length} profession${avoidable.length !== 1 ? 's' : ''}.
+      </div>`;
+    }
   }
   html += '</div>';
 
