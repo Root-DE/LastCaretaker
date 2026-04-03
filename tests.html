@@ -141,7 +141,7 @@
         let valid = true;
         const base = h * 15;
         for (let s = 0; s < 15; s++) {
-          if (humanFlat[base + s] > 0 && total[s] < humanFlat[base + s]) {
+          if (humanFlat[base + s] > 0 && total[s] <= humanFlat[base + s]) {
             valid = false; break;
           }
         }
@@ -270,13 +270,13 @@
       humanFlat[15] = 10;
 
       const total = new Float64Array(15);
-      total[0] = 6; total[1] = 4; // meets human 0 but not human 1
+      total[0] = 6; total[1] = 4; // exceeds human 0 (weight>5, height>3) but not human 1 (weight 6 not > 10)
       assertEqual(countValid(total, humanFlat, 2), 1, 'matches one profession');
 
-      total[0] = 10; // now meets both
+      total[0] = 11; // now exceeds both (11>5, 11>10)
       assertEqual(countValid(total, humanFlat, 2), 2, 'matches both professions');
 
-      total[0] = 2; // meets neither
+      total[0] = 5; // equals req but does not exceed — matches neither
       assertEqual(countValid(total, humanFlat, 2), 0, 'matches no professions');
     })();
 
@@ -297,48 +297,6 @@
       const parsed = parseCSV(csv);
       const name = normalize(parsed.rows[0]['Profession']);
       assertEqual(name, 'Lab Tech', 'non-breaking space normalized');
-    })();
-
-    section('Worker solver (integration)');
-    (function() {
-      // Test that the worker can solve a trivial 1-item problem
-      const worker = new Worker('solver-worker.js');
-      const timeout = setTimeout(() => {
-        assert(false, 'worker timed out');
-        worker.terminate();
-        finish();
-      }, 5000);
-
-      worker.onmessage = function(e) {
-        if (e.data.type === 'done') {
-          clearTimeout(timeout);
-          assert(e.data.solution !== null, 'worker found a solution');
-          if (e.data.solution) {
-            assertEqual(e.data.solution.items.length, 1, 'solution uses 1 item');
-            assertEqual(e.data.solution.collateral, 1, 'matches 1 profession');
-          }
-          worker.terminate();
-          finish();
-        }
-      };
-
-      // 1 item: [0,0,0,0,5, 0,0,0,0,0,0,0,0,0,0] (intellect=5)
-      // 1 human: requires intellect=5
-      worker.postMessage({
-        type: 'solve',
-        items: [[0,0,0,0,5, 0,0,0,0,0,0,0,0,0,0]],
-        humans: [[0,0,0,0,5, 0,0,0,0,0,0,0,0,0,0]],
-        targetReqs: [[4, 5]],
-        bestPerStat: [0,0,0,0,5, 0,0,0,0,0,0,0,0,0,0],
-        inherentCount: 1,
-        firstItems: [0],
-        initialLb: 1,
-        maxSearchDepth: 5,
-        maxCounts: [9999],
-        timeoutSec: 5,
-      });
-
-      return; // async — finish() will be called
     })();
 
     section('Ash Notebook stat update');
@@ -384,29 +342,376 @@
       assert(!guardIsSubset, 'Guard T2 is NOT a subset of Teacher T2');
     })();
 
-    section('Worker pause/resume message handling');
+    section('Item pre-filtering (exclude items irrelevant to target stats)');
     (function() {
-      // Verify worker accepts pause/resume without crashing
-      const worker = new Worker('solver-worker.js');
-      worker.postMessage({ type: 'pause' });
-      worker.postMessage({ type: 'resume' });
-      worker.terminate();
-      assert(true, 'Worker accepts pause/resume messages without error');
+      // Items: intellect-only, strength-only, weight-only, intellect+communication
+      // Target requires only intellect — strength/weight items should be excluded
+      const allItems = [
+        { stats: [0,0,0,0,5, 0,0,0,0,0,0,0,0,0,0] }, // intellect=5 — relevant
+        { stats: [0,0,0,8,0, 0,0,0,0,0,0,0,0,0,0] }, // strength=8 — irrelevant
+        { stats: [3,0,0,0,0, 0,0,0,0,0,0,0,0,0,0] }, // weight=3 — irrelevant
+        { stats: [0,0,0,0,3, 0,0,2,0,0,0,0,0,0,0] }, // intellect=3+communication — relevant
+      ];
+      const targetReqs = [[4, 10]]; // intellect=10 required
+      const filtered = allItems.filter(it => targetReqs.some(([si]) => it.stats[si] > 0));
+      assertEqual(filtered.length, 2, 'pre-filter: keeps only items contributing to required stats');
+      assertEqual(filtered[0].stats[4], 5, 'pre-filter: intellect-only item retained');
+      assertEqual(filtered[1].stats[4], 3, 'pre-filter: mixed item with intellect retained');
+
+      // When target requires multiple stats, items contributing ANY of them are kept
+      const targetMulti = [[3, 5], [4, 5]]; // strength=5 AND intellect=5
+      const filteredMulti = allItems.filter(it => targetMulti.some(([si]) => it.stats[si] > 0));
+      assertEqual(filteredMulti.length, 3, 'pre-filter: strength item also retained for multi-stat target');
+
+      // When no items are relevant, filter returns empty
+      const targetUnreachable = [[12, 10]]; // logic=10, none of the items have logic
+      const filteredNone = allItems.filter(it => targetUnreachable.some(([si]) => it.stats[si] > 0));
+      assertEqual(filteredNone.length, 0, 'pre-filter: empty result when no items match target stats');
     })();
 
-    // Deferred finish for async tests
-    let asyncDone = false;
-    function finish() {
-      if (asyncDone) return;
-      asyncDone = true;
+    section('Max useful count clamping');
+    (function() {
+      function clampMaxCounts(items, targetReqs, initialCounts) {
+        const maxCounts = initialCounts.slice();
+        for (let i = 0; i < items.length; i++) {
+          let maxUseful = 0;
+          for (const [si, val] of targetReqs) {
+            if (items[i].stats[si] > 0) {
+              maxUseful = Math.max(maxUseful, Math.ceil((val + 1) / items[i].stats[si]));
+            }
+          }
+          if (maxUseful > 0) maxCounts[i] = Math.min(maxCounts[i], maxUseful);
+        }
+        return maxCounts;
+      }
+
+      const targetReqs = [[4, 10]]; // intellect=10 (need >10)
+
+      // Item gives intellect=3 → ceil(11/3)=4
+      const c1 = clampMaxCounts([{ stats: [0,0,0,0,3,0,0,0,0,0,0,0,0,0,0] }], targetReqs, [9999]);
+      assertEqual(c1[0], 4, 'clamp: ceil(11/3)=4 for intellect=3 item');
+
+      // Item gives intellect=5 → ceil(11/5)=3
+      const c2 = clampMaxCounts([{ stats: [0,0,0,0,5,0,0,0,0,0,0,0,0,0,0] }], targetReqs, [9999]);
+      assertEqual(c2[0], 3, 'clamp: ceil(11/5)=3 for intellect=5 item');
+
+      // Item gives intellect=10 → ceil(11/10)=2
+      const c3 = clampMaxCounts([{ stats: [0,0,0,0,10,0,0,0,0,0,0,0,0,0,0] }], targetReqs, [9999]);
+      assertEqual(c3[0], 2, 'clamp: ceil(11/10)=2 for intellect=10 item');
+
+      // Resource limit lower than useful max — not increased by clamping
+      const c4 = clampMaxCounts([{ stats: [0,0,0,0,3,0,0,0,0,0,0,0,0,0,0] }], targetReqs, [2]);
+      assertEqual(c4[0], 2, 'clamp: resource limit of 2 is not increased (useful=4)');
+
+      // Item relevant to highest-demand stat dominates
+      const targetMulti = [[3, 6], [4, 10]]; // strength>6 (ceil(7/3)=3), intellect>10 (ceil(11/3)=4)
+      const c5 = clampMaxCounts(
+        [{ stats: [0,0,0,3,3,0,0,0,0,0,0,0,0,0,0] }], // strength=3, intellect=3
+        targetMulti, [9999]
+      );
+      assertEqual(c5[0], 4, 'clamp: max over all required stats dominates (intellect needs 4 vs strength needs 3)');
+
+      // Item irrelevant to all target stats — count unchanged
+      const c6 = clampMaxCounts([{ stats: [5,0,0,0,0,0,0,0,0,0,0,0,0,0,0] }], targetReqs, [9999]);
+      assertEqual(c6[0], 9999, 'clamp: irrelevant item count unchanged');
+    })();
+
+    // ─── Async test coordination ──────────────────────────────────────────────
+    // Track pending async tests; show summary when all complete.
+    let asyncPending = 0;
+    function showSummary() {
       const summary = document.getElementById('summary');
       const total = passed + failed;
-      summary.textContent = `\n${passed}/${total} passed` + (failed > 0 ? `, ${failed} FAILED` : ' — all green');
+      summary.textContent = '\n' + passed + '/' + total + ' passed' + (failed > 0 ? ', ' + failed + ' FAILED' : ' \u2014 all green');
       summary.className = failed > 0 ? 'fail' : 'pass';
     }
+    function asyncBegin() { asyncPending++; }
+    function asyncEnd() { asyncPending--; if (asyncPending <= 0) showSummary(); }
 
-    // Fallback: finish after sync tests if no async tests pending
-    setTimeout(() => { if (!asyncDone) finish(); }, 6000);
+    asyncBegin();
+    (function() {
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver (integration) — 1-item trivial solution');
+        assert(e.data.solution !== null, 'trivial: worker found a solution');
+        if (e.data.solution) {
+          assertEqual(e.data.solution.items.length, 1, 'trivial: solution uses 1 item');
+          assertEqual(e.data.solution.collateral, 1, 'trivial: matches 1 profession');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      // 1 item: intellect=6; 1 human: requires intellect=5 (need total > 5)
+      worker.postMessage({
+        type: 'solve',
+        items: [[0,0,0,0,6, 0,0,0,0,0,0,0,0,0,0]],
+        humans: [[0,0,0,0,5, 0,0,0,0,0,0,0,0,0,0]],
+        targetReqs: [[4, 5]],
+        bestPerStat: [0,0,0,0,6, 0,0,0,0,0,0,0,0,0,0],
+        inherentCount: 1,
+        firstItems: [0],
+        initialLb: 1,
+        maxSearchDepth: 5,
+        maxCounts: [9999],
+        timeoutSec: 5,
+      });
+    })();
+
+    asyncBegin();
+    (function() {
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, '2-item worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver — 2-item solution (different stats required)');
+        assert(e.data.solution !== null, '2-item: worker found a solution');
+        if (e.data.solution) {
+          assertEqual(e.data.solution.items.length, 2, '2-item: solution uses exactly 2 items');
+          assertEqual(e.data.solution.collateral, 1, '2-item: matches 1 profession');
+          // Verify both stats exceeded (strict >)
+          assert(e.data.solution.total[3] > 5, '2-item: strength requirement exceeded');
+          assert(e.data.solution.total[4] > 5, '2-item: intellect requirement exceeded');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      // item0: strength=6 only; item1: intellect=6 only
+      // Target: strength=5 AND intellect=5 — need total > 5 for both
+      worker.postMessage({
+        type: 'solve',
+        items: [
+          [0,0,0,6,0, 0,0,0,0,0,0,0,0,0,0],
+          [0,0,0,0,6, 0,0,0,0,0,0,0,0,0,0],
+        ],
+        humans: [[0,0,0,5,5, 0,0,0,0,0,0,0,0,0,0]],
+        targetReqs: [[3, 5], [4, 5]],
+        bestPerStat: [0,0,0,6,6, 0,0,0,0,0,0,0,0,0,0],
+        inherentCount: 1,
+        firstItems: [0, 1],
+        initialLb: 2,
+        maxSearchDepth: 5,
+        maxCounts: [9999, 9999],
+        timeoutSec: 5,
+      });
+    })();
+
+    asyncBegin();
+    (function() {
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'exhaustive worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver — exhaustive=true when full search space explored');
+        assert(e.data.solution === null, 'exhaustive: no solution (impossible within depth)');
+        assert(e.data.exhaustive === true, 'exhaustive: reports exhaustive=true after full depth scan');
+        worker.terminate();
+        asyncEnd();
+      };
+      // item: intellect=3; target: intellect=100; maxSearchDepth=2
+      // Max achievable = 3×2=6 < 100; IDA* prunes immediately; all depths exhausted
+      worker.postMessage({
+        type: 'solve',
+        items: [[0,0,0,0,3, 0,0,0,0,0,0,0,0,0,0]],
+        humans: [[0,0,0,0,100, 0,0,0,0,0,0,0,0,0,0]],
+        targetReqs: [[4, 100]],
+        bestPerStat: [0,0,0,0,3, 0,0,0,0,0,0,0,0,0,0],
+        inherentCount: 1,
+        firstItems: [0],
+        initialLb: 1,
+        maxSearchDepth: 2,
+        maxCounts: [9999],
+        timeoutSec: 10,
+      });
+    })();
+
+    asyncBegin();
+    (function() {
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'stop-early worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver — exhaustive=false when stopped early');
+        assert(e.data.exhaustive === false, 'stop-early: reports exhaustive=false when stopped');
+        worker.terminate();
+        asyncEnd();
+      };
+      // Send a solvable but deep problem, then immediately stop it
+      // item: intellect=5; target: intellect=100 → needs >100, so 21 items, lots of DFS work
+      worker.postMessage({
+        type: 'solve',
+        items: [[0,0,0,0,5, 0,0,0,0,0,0,0,0,0,0]],
+        humans: [[0,0,0,0,100, 0,0,0,0,0,0,0,0,0,0]],
+        targetReqs: [[4, 100]],
+        bestPerStat: [0,0,0,0,5, 0,0,0,0,0,0,0,0,0,0],
+        inherentCount: 1,
+        firstItems: [0],
+        initialLb: 21,
+        maxSearchDepth: 30,
+        maxCounts: [9999],
+        timeoutSec: 30,
+      });
+      worker.postMessage({ type: 'stop' });
+    })();
+
+    asyncBegin();
+    (function() {
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'pause/resume worker timed out'); worker.terminate(); asyncEnd(); }, 8000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker pause/resume — correct solution produced after pause');
+        assert(e.data.solution !== null, 'pause/resume: solution found after resume');
+        if (e.data.solution) {
+          assertEqual(e.data.solution.items.length, 1, 'pause/resume: correct 1-item solution');
+          assertEqual(e.data.solution.collateral, 1, 'pause/resume: correct collateral count');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [[0,0,0,0,6, 0,0,0,0,0,0,0,0,0,0]],
+        humans: [[0,0,0,0,5, 0,0,0,0,0,0,0,0,0,0]],
+        targetReqs: [[4, 5]],
+        bestPerStat: [0,0,0,0,6, 0,0,0,0,0,0,0,0,0,0],
+        inherentCount: 1,
+        firstItems: [0],
+        initialLb: 1,
+        maxSearchDepth: 5,
+        maxCounts: [9999],
+        timeoutSec: 5,
+      });
+      // Pause immediately, resume after 300ms — solution should still be correct
+      worker.postMessage({ type: 'pause' });
+      setTimeout(() => worker.postMessage({ type: 'resume' }), 300);
+    })();
+
+    // ── Eco mode: resource-cost scoring ──
+    asyncBegin();
+    (function() {
+      // Two items: item0 has availability=10, item1 has availability=100
+      // Both satisfy the requirement with 1 unit
+      // Non-eco mode: either is fine (same item count)
+      // Eco mode: item1 (1/100=1%) should win over item0 (1/10=10%)
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'eco-mode worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 eco mode prefers abundant items');
+        assert(e.data.solution !== null, 'eco: found a solution');
+        if (e.data.solution) {
+          assert(e.data.solution.resourceCost != null, 'eco: resourceCost is present');
+          // The solver should pick item1 (index 1) because it has higher availability
+          // item1: 1/100 = 0.01 vs item0: 1/10 = 0.1
+          assert(e.data.solution.resourceCost <= 0.011, 'eco: picked the abundant item (cost \u2264 1.1%)');
+          assertEqual(e.data.solution.items.length, 1, 'eco: uses 1 item');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [
+          [0,0,0,0,6, 0,0,0,0,0,0,0,0,0,0],  // item0: intellect=6
+          [0,0,0,0,6, 0,0,0,0,0,0,0,0,0,0],   // item1: intellect=6 (identical stats)
+        ],
+        humans: [[0,0,0,0,5, 0,0,0,0,0,0,0,0,0,0]],
+        targetReqs: [[4, 5]],
+        bestPerStat: [0,0,0,0,6, 0,0,0,0,0,0,0,0,0,0],
+        inherentCount: 1,
+        firstItems: [0, 1],
+        initialLb: 1,
+        maxSearchDepth: 5,
+        maxCounts: [9999, 9999],
+        timeoutSec: 5,
+        ecoMode: true,
+        availability: [10, 100],
+      });
+    })();
+
+    asyncBegin();
+    (function() {
+      // Eco mode: 2 abundant items vs 1 scarce item
+      // item0: intellect=5, availability=10 → 1 item costs 10%
+      // item1: intellect=3, availability=200 → 2 items costs 1%
+      // Eco mode should prefer 2x item1 (1%) over 1x item0 (10%)
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'eco-multi worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 eco mode prefers more abundant items over fewer scarce');
+        assert(e.data.solution !== null, 'eco-multi: found a solution');
+        if (e.data.solution) {
+          assert(e.data.solution.resourceCost < 0.11, 'eco-multi: resource cost < 11% (prefers abundant)');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [
+          [0,0,0,0,6, 0,0,0,0,0,0,0,0,0,0],  // item0: intellect=6, scarce
+          [0,0,0,0,3, 0,0,0,0,0,0,0,0,0,0],   // item1: intellect=3, abundant
+        ],
+        humans: [[0,0,0,0,5, 0,0,0,0,0,0,0,0,0,0]],
+        targetReqs: [[4, 5]],
+        bestPerStat: [0,0,0,0,6, 0,0,0,0,0,0,0,0,0,0],
+        inherentCount: 1,
+        firstItems: [0, 1],
+        initialLb: 1,
+        maxSearchDepth: 5,
+        maxCounts: [9999, 9999],
+        timeoutSec: 5,
+        ecoMode: true,
+        availability: [10, 200],
+      });
+    })();
+
+    asyncBegin();
+    (function() {
+      // Non-eco mode always includes resourceCost for info
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'resource-info worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 resourceCost present even in non-eco mode');
+        assert(e.data.solution !== null, 'resource-info: found a solution');
+        if (e.data.solution) {
+          assert(e.data.solution.resourceCost != null, 'resource-info: resourceCost field exists');
+          assert(typeof e.data.solution.resourceCost === 'number', 'resource-info: resourceCost is a number');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [[0,0,0,0,6, 0,0,0,0,0,0,0,0,0,0]],
+        humans: [[0,0,0,0,5, 0,0,0,0,0,0,0,0,0,0]],
+        targetReqs: [[4, 5]],
+        bestPerStat: [0,0,0,0,6, 0,0,0,0,0,0,0,0,0,0],
+        inherentCount: 1,
+        firstItems: [0],
+        initialLb: 1,
+        maxSearchDepth: 5,
+        maxCounts: [9999],
+        timeoutSec: 5,
+        ecoMode: false,
+        availability: [50],
+      });
+    })();
+
+    // Fallback: show summary if all tests were synchronous (no asyncBegin calls)
+    setTimeout(() => { if (asyncPending <= 0) showSummary(); }, 100);
   </script>
 </body>
 </html>

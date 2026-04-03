@@ -33,13 +33,13 @@
 
           <div id="requirements-panel" class="requirements-panel hidden">
             <h3 id="req-title" class="req-title"></h3>
-            <p class="req-hint">Values = stats that food &amp; memories must provide. Click a value to edit.</p>
+            <p class="req-hint">Values = stats that food &amp; memories must <strong>exceed</strong>. Click a value to edit.</p>
             <div id="req-grid" class="req-grid"></div>
             <div id="analysis-panel" class="analysis-panel hidden">
               <h4>Profession Analysis</h4>
               <div class="info-box" id="match-info">
                 <strong>Why multiple professions?</strong>
-                When the provided stats meet the requirements of more than one profession, multiple matches occur.
+                When the accumulated stats from a recipe exceed the requirements of more than one profession, multiple matches occur.
                 Professions whose requirements are a strict subset of your target will <em>always</em> match (inherent).
                 It is currently unclear which profession the game selects when multiple match &mdash; it may be random.
                 The solver minimises these collateral matches so you get the best odds.
@@ -64,8 +64,9 @@
               <span>Assume unlimited resources</span>
             </label>
             <div class="toolbar-actions">
-              <button class="btn btn-sm" id="save-inv-btn" title="Save inventory to browser">Save</button>
-              <button class="btn btn-sm" id="load-inv-btn" title="Load saved inventory">Load</button>
+              <button class="btn btn-sm" id="save-inv-btn" title="Download inventory as CSV">Save</button>
+              <button class="btn btn-sm" id="load-inv-btn" title="Load inventory from CSV">Load</button>
+              <input type="file" accept=".csv" id="inv-csv-upload" class="file-hidden">
               <button class="btn btn-sm btn-outline" id="reset-inv-btn" title="Reset all to unlimited">Reset</button>
             </div>
           </div>
@@ -97,15 +98,15 @@
           <div class="edit-toolbar">
             <div class="edit-toolbar-group">
               <span class="download-label">Download:</span>
-              <button class="btn btn-sm btn-outline" id="dl-food">Food</button>
-              <button class="btn btn-sm btn-outline" id="dl-memories">Memories</button>
-              <button class="btn btn-sm btn-outline" id="dl-humans">Humans</button>
+              <button class="btn btn-sm btn-outline" id="dl-food">Food Stats</button>
+              <button class="btn btn-sm btn-outline" id="dl-memories">Memory Stats</button>
+              <button class="btn btn-sm btn-outline" id="dl-humans">Human Requirements</button>
             </div>
             <div class="edit-toolbar-group">
               <span class="download-label">Upload:</span>
-              <label class="btn btn-sm btn-outline upload-label">Food <input type="file" accept=".csv" id="ul-food" hidden></label>
-              <label class="btn btn-sm btn-outline upload-label">Memories <input type="file" accept=".csv" id="ul-memories" hidden></label>
-              <label class="btn btn-sm btn-outline upload-label">Humans <input type="file" accept=".csv" id="ul-humans" hidden></label>
+              <label class="btn btn-sm btn-outline upload-label">Food Stats <input type="file" accept=".csv" id="ul-food" class="file-hidden"></label>
+              <label class="btn btn-sm btn-outline upload-label">Memory Stats <input type="file" accept=".csv" id="ul-memories" class="file-hidden"></label>
+              <label class="btn btn-sm btn-outline upload-label">Human Requirements <input type="file" accept=".csv" id="ul-humans" class="file-hidden"></label>
             </div>
           </div>
           <div class="edit-tabs">
@@ -137,13 +138,25 @@
         <div class="card-body hidden" id="settings-body">
           <div class="settings-grid">
             <label>Timeout (seconds)</label>
-            <input type="number" id="timeout-input" value="120" min="5" max="600" class="input-sm">
+            <input type="number" id="timeout-input" value="30" min="5" max="600" class="input-sm">
             <label>Worker threads</label>
             <input type="number" id="threads-input" value="0" min="0" max="64" class="input-sm">
-            <span class="hint" style="grid-column:1/-1">Threads 0 = auto-detect. Timeout applies per worker.</span>
+            <label>Max recipe depth</label>
+            <input type="number" id="depth-input" value="30" min="0" max="100" class="input-sm">
+            <span class="hint" style="grid-column:1/-1">Threads 0 = auto-detect. Timeout applies per worker. Depth 0 = auto (30).</span>
           </div>
         </div>
       </section>
+
+      <!-- Eco Mode -->
+      <div class="eco-toggle-wrap">
+        <label class="eco-toggle" title="Minimize resource consumption by preferring items that are more abundant in the world, rather than simply minimizing total item count">
+          <input type="checkbox" id="eco-mode-check" checked>
+          <span class="eco-slider"></span>
+          <svg class="eco-leaf" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 20A7 7 0 0 1 9.8 6.9C15.5 4.9 17 3.5 19 2c1 2 2 4.5 2 8 0 5.5-4.5 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>
+          <span class="eco-text">Resource-saving mode</span>
+        </label>
+      </div>
 
       <!-- Solve Button -->
       <div class="solve-container">
@@ -170,7 +183,14 @@
 
       <!-- Results -->
       <section class="card hidden" id="results-card">
-        <div class="card-header"><h2>Solution</h2></div>
+        <div class="card-header results-header">
+          <h2>Solution</h2>
+          <div class="solution-nav hidden" id="solution-nav">
+            <button class="btn-sol-nav" id="sol-prev" title="Previous solution">&lsaquo;</button>
+            <span class="sol-nav-label" id="sol-nav-label">1 / 1</span>
+            <button class="btn-sol-nav" id="sol-next" title="Next solution">&rsaquo;</button>
+          </div>
+        </div>
         <div class="card-body" id="results-body"></div>
         <div class="card-body hidden" id="apply-solution-wrap">
           <button class="btn btn-apply" id="apply-solution-btn">Apply Solution &mdash; Subtract Used Resources</button>
@@ -184,6 +204,7 @@
       <p>Based on data from the <a href="https://thelastcaretaker.wiki.gg/wiki/Humans" target="_blank" rel="noopener">official wiki</a>
          &bull; <a href="https://store.steampowered.com/app/2722000/The_Last_Caretaker/" target="_blank" rel="noopener">Steam</a></p>
       <p class="footer-note">Solver: specificity-optimised IDA* with parallel Web Workers. All computation runs in your browser.</p>
+      <p class="footer-version" id="footer-version"></p>
     </footer>
   </div>
 
