@@ -11,7 +11,7 @@ const { chromium } = require('playwright');
   const logs = [];
   page.on('console', msg => logs.push(msg.text()));
 
-  await page.goto('http://localhost:8080/tests.html');
+  await page.goto(`http://localhost:${process.env.TEST_PORT || 8080}/tests.html`);
 
   // Wait for the summary element to have content (tests complete)
   await page.waitForFunction(
