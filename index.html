@@ -49,13 +49,19 @@
           <h2>Select Target Profession</h2>
         </div>
         <div class="card-body">
-          <select id="profession-select" class="select-profession">
+          <div class="prof-combo" id="profession-combo">
+            <input type="text" id="profession-filter" class="prof-combo-input"
+                   placeholder="Choose a profession…" autocomplete="off" spellcheck="false">
+            <span class="prof-combo-chevron" aria-hidden="true"></span>
+            <div class="prof-combo-dropdown" id="profession-dropdown" hidden></div>
+          </div>
+          <select id="profession-select" aria-hidden="true" tabindex="-1" style="display:none">
             <option value="">Choose a profession&hellip;</option>
           </select>
 
           <div id="requirements-panel" class="requirements-panel hidden">
             <h3 id="req-title" class="req-title"></h3>
-            <p class="req-hint">Values = stats that food &amp; memories must <strong>exceed</strong>. Click a value to edit.</p>
+            <p class="req-hint">Values = stats that food &amp; memories must <strong>meet or exceed</strong>. Click a value to edit.</p>
             <div id="req-grid" class="req-grid"></div>
             <div id="analysis-panel" class="analysis-panel hidden">
               <h4>Profession Analysis</h4>
@@ -170,14 +176,27 @@
         </div>
       </section>
 
-      <!-- Eco Mode -->
+      <!-- Eco Mode 3-way Switch -->
       <div class="eco-toggle-wrap">
-        <label class="eco-toggle" title="Minimize resource consumption by preferring items that are more abundant in the world, rather than simply minimizing total item count">
-          <input type="checkbox" id="eco-mode-check" checked>
-          <span class="eco-slider"></span>
-          <svg class="eco-leaf" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 20A7 7 0 0 1 9.8 6.9C15.5 4.9 17 3.5 19 2c1 2 2 4.5 2 8 0 5.5-4.5 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>
-          <span class="eco-text">Resource-saving mode</span>
-        </label>
+        <div class="eco-3way" id="eco-mode-switch" role="radiogroup" aria-label="Solver mode">
+          <button class="eco-seg" data-mode="0">Normal</button>
+          <button class="eco-seg active" data-mode="1"
+            title="Prefer items more abundant in the world, minimising global resource impact">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M11 20A7 7 0 0 1 9.8 6.9C15.5 4.9 17 3.5 19 2c1 2 2 4.5 2 8 0 5.5-4.5 10-10 10Z"/>
+              <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
+            </svg>
+            World Eco
+          </button>
+          <button class="eco-seg" data-mode="2"
+            title="Prefer items you have more of in your inventory, minimising personal resource usage. Set counts in the Inventory section first.">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
+              <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
+            </svg>
+            Inventory Eco
+          </button>
+        </div>
       </div>
 
       <!-- Solve Button -->

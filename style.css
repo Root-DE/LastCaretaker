@@ -89,18 +89,48 @@ a:hover { text-decoration: underline; }
 /* Hidden utility */
 .hidden { display: none !important; }
 
-/* === Select === */
-.select-profession {
-  width: 100%; padding: 10px 14px; font-size: 1rem;
+/* === Profession Combobox === */
+.prof-combo { position: relative; }
+.prof-combo-input {
+  width: 100%; padding: 10px 40px 10px 14px; font-size: 1rem; box-sizing: border-box;
   background: var(--bg-input); color: var(--text);
   border: 1px solid var(--border); border-radius: var(--radius-sm);
-  appearance: none; cursor: pointer;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238b949e' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: right 14px center;
+  cursor: pointer;
 }
-.select-profession:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(88,166,255,.15); }
-.select-profession option { background: var(--bg-card); color: var(--text); }
-.select-profession optgroup { color: var(--accent); font-weight: 600; }
+.prof-combo-input::placeholder { color: var(--text-dim); }
+.prof-combo-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(88,166,255,.15); cursor: text; }
+.prof-combo-chevron {
+  position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+  width: 12px; height: 8px; pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238b949e' stroke-width='1.5' fill='none'/%3E%3C/svg%3E") no-repeat center;
+  transition: transform .18s ease;
+}
+.prof-combo.open .prof-combo-chevron { transform: translateY(-50%) rotate(180deg); }
+.prof-combo-dropdown {
+  position: fixed; z-index: 9999;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); max-height: 300px; overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0,0,0,.5);
+  animation: prof-combo-in .13s ease;
+}
+@keyframes prof-combo-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.prof-combo-group + .prof-combo-group { border-top: 1px solid var(--border); }
+.prof-combo-grouplabel {
+  padding: 8px 14px 3px; font-size: .7rem; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--accent); font-weight: 600; opacity: .75;
+}
+.prof-combo-option {
+  padding: 8px 16px; cursor: pointer; color: var(--text); font-size: .95rem;
+  transition: background .08s;
+}
+.prof-combo-option.is-selected { color: var(--accent); }
+.prof-combo-option:hover,
+.prof-combo-option.is-highlighted { background: rgba(88,166,255,.12); }
+.prof-combo-option.is-selected.is-highlighted { background: rgba(88,166,255,.18); }
+.prof-combo-empty { padding: 14px 16px; color: var(--text-dim); font-style: italic; font-size: .9rem; }
 
 /* === Requirements === */
 .requirements-panel { margin-top: 16px; }
@@ -372,28 +402,28 @@ a:hover { text-decoration: underline; }
   font-size: .82rem; color: var(--text-dim);
 }
 
-/* === Eco Mode Toggle === */
+/* === Eco Mode 3-way Switch === */
 .eco-toggle-wrap { display: flex; justify-content: center; padding: 0 0 2px; }
-.eco-toggle {
-  display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
-  font-size: .85rem; color: var(--text-dim); user-select: none;
+.eco-3way {
+  display: inline-flex; align-items: stretch;
+  background: var(--border); border-radius: 9px; padding: 3px; gap: 2px;
 }
-.eco-toggle input { display: none; }
-.eco-slider {
-  position: relative; width: 34px; height: 18px;
-  background: var(--border); border-radius: 9px; transition: background .2s;
+.eco-seg {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 15px; border: none; border-radius: 7px;
+  background: transparent; color: var(--text-dim);
+  font-size: .83rem; font-family: var(--font);
+  cursor: pointer; user-select: none;
+  transition: background .15s, color .15s;
+  white-space: nowrap;
 }
-.eco-slider::after {
-  content: ''; position: absolute; top: 2px; left: 2px;
-  width: 14px; height: 14px; background: var(--text-dim);
-  border-radius: 50%; transition: transform .2s, background .2s;
+.eco-seg:hover:not(.active) { background: rgba(255,255,255,.06); color: var(--text); }
+.eco-seg.active {
+  background: var(--bg-card); color: var(--text);
+  box-shadow: 0 1px 3px rgba(0,0,0,.45);
 }
-.eco-toggle input:checked + .eco-slider { background: rgba(63,185,80,.25); }
-.eco-toggle input:checked + .eco-slider::after { transform: translateX(16px); background: var(--green); }
-.eco-toggle input:checked ~ .eco-leaf { color: var(--green); }
-.eco-toggle input:checked ~ .eco-text { color: var(--green); }
-.eco-leaf { display: inline-flex; color: var(--text-dim); transition: color .2s; }
-.eco-text { transition: color .2s; }
+.eco-seg[data-mode="1"].active { color: var(--green); }
+.eco-seg[data-mode="2"].active { color: var(--accent); }
 .recipe-item-pct { font-size: .75rem; color: var(--text-dim); margin-left: 2px; }
 
 /* === Solution Navigation === */
