@@ -29,7 +29,7 @@ function countValid(total, humanFlat, nHumans) {
     let valid = true;
     const base = h * 15;
     for (let s = 0; s < 15; s++) {
-      if (humanFlat[base + s] > 0 && total[s] <= humanFlat[base + s]) {
+      if (humanFlat[base + s] > 0 && total[s] < humanFlat[base + s]) {
         valid = false;
         break;
       }
@@ -53,8 +53,9 @@ function computeResourceCost(chosen, avail) {
 // Core DFS — tight inner loop, optimized for V8 JIT
 // itemFlat: Float64Array[nItems*15], reqs: Float64Array[nReqs*2] as [si,val,si,val,...]
 // suffMax: Float64Array[nItems*nReqs] — suffMax[i*nReqs+r] = max single-item value for req r among items[i..end]
+// suffJoint: Uint8Array[nItems*nReqs*nReqs] — suffJoint[i*nReqs*nReqs+r1*nReqs+r2] = 1 if any item j>=i covers both req r1 and r2
 function dfs(itemFlat, nItems, chosen, total, reqs, nReqs, maxD, d, minI,
-             bps, humanFlat, nHumans, state, maxCounts, used, suffMax) {
+             bps, humanFlat, nHumans, state, maxCounts, used, suffMax, suffJoint) {
   state.nodes++;
 
   // Periodic checks (every ~131K nodes via bitmask)
@@ -74,10 +75,10 @@ function dfs(itemFlat, nItems, chosen, total, reqs, nReqs, maxD, d, minI,
 
   const remaining = maxD - d;
 
-  // Lower-bound pruning on target deficits (strict >: need total > req, i.e. total >= req+1)
+  // Lower-bound pruning on target deficits (>=: need total >= req)
   for (let r = 0; r < nReqs; r++) {
     const si = reqs[r * 2];
-    const deficit = reqs[r * 2 + 1] + 1 - total[si];
+    const deficit = reqs[r * 2 + 1] - total[si];
     if (deficit > 0) {
       if (Math.ceil(deficit / bps[si]) > remaining) return;
     }
@@ -88,15 +89,49 @@ function dfs(itemFlat, nItems, chosen, total, reqs, nReqs, maxD, d, minI,
     const suffOff = minI * nReqs;
     for (let r = 0; r < nReqs; r++) {
       const si = reqs[r * 2];
-      const deficit = reqs[r * 2 + 1] + 1 - total[si];
+      const deficit = reqs[r * 2 + 1] - total[si];
       if (deficit > 0 && suffMax[suffOff + r] * remaining < deficit) return;
+    }
+
+    // Pairwise additive lower-bound: if no remaining item covers both req r1 and r2
+    // simultaneously, their item-count lower bounds are additive (not max).
+    if (nReqs > 1) {
+      const suffJOff = minI * nReqs * nReqs;
+      for (let r1 = 0; r1 < nReqs - 1; r1++) {
+        const si1 = reqs[r1 * 2];
+        const d1 = reqs[r1 * 2 + 1] - total[si1];
+        if (d1 <= 0) continue;
+        const lb1 = Math.ceil(d1 / bps[si1]);
+        for (let r2 = r1 + 1; r2 < nReqs; r2++) {
+          const si2 = reqs[r2 * 2];
+          const d2 = reqs[r2 * 2 + 1] - total[si2];
+          if (d2 <= 0) continue;
+          if (!suffJoint[suffJOff + r1 * nReqs + r2]) {
+            // No remaining item covers both — lower bounds add instead of max
+            if (lb1 + Math.ceil(d2 / bps[si2]) > remaining) return;
+          }
+        }
+      }
     }
   }
 
-  // Check if target is satisfied (strict >: total must exceed req)
+  // Collateral lower-bound: adding items can only increase stats, so a partial
+  // state that already matches >= bestColl professions cannot lead to improvement.
+  if (state.bestColl < Infinity) {
+    let nc = 0;
+    outer: for (let h = 0; h < nHumans; h++) {
+      const hb = h * 15;
+      for (let s = 0; s < 15; s++) {
+        if (humanFlat[hb + s] > 0 && total[s] < humanFlat[hb + s]) continue outer;
+      }
+      if (++nc >= state.bestColl) return;
+    }
+  }
+
+  // Check if target is satisfied (>=: total must meet or exceed req)
   let satisfied = true;
   for (let r = 0; r < nReqs; r++) {
-    if (total[reqs[r * 2]] <= reqs[r * 2 + 1]) { satisfied = false; break; }
+    if (total[reqs[r * 2]] < reqs[r * 2 + 1]) { satisfied = false; break; }
   }
 
   if (satisfied) {
@@ -119,12 +154,12 @@ function dfs(itemFlat, nItems, chosen, total, reqs, nReqs, maxD, d, minI,
     if (state.perfect || shouldStop) return;
     if (used[i] >= maxCounts[i]) continue;
 
-    // Skip items that don't help with any remaining deficit (strict >)
+    // Skip items that don't help with any remaining deficit (>= semantics)
     const base = i * 15;
     let helps = false;
     for (let r = 0; r < nReqs; r++) {
       const si = reqs[r * 2];
-      if (total[si] <= reqs[r * 2 + 1] && itemFlat[base + si] > 0) { helps = true; break; }
+      if (total[si] < reqs[r * 2 + 1] && itemFlat[base + si] > 0) { helps = true; break; }
     }
     if (!helps) continue;
 
@@ -133,7 +168,7 @@ function dfs(itemFlat, nItems, chosen, total, reqs, nReqs, maxD, d, minI,
     for (let s = 0; s < 15; s++) total[s] += itemFlat[base + s];
 
     dfs(itemFlat, nItems, chosen, total, reqs, nReqs, maxD, d + 1, i,
-        bps, humanFlat, nHumans, state, maxCounts, used, suffMax);
+        bps, humanFlat, nHumans, state, maxCounts, used, suffMax, suffJoint);
 
     for (let s = 0; s < 15; s++) total[s] -= itemFlat[base + s];
     used[i]--;
@@ -187,6 +222,22 @@ function solve(data) {
     }
   }
 
+  // Pairwise joint suffix: suffJoint[i*nReqs*nReqs + r1*nReqs + r2] = 1 if any
+  // item j >= i contributes to BOTH req r1 and req r2 simultaneously.
+  // Enables the additive lower-bound pruning in dfs().
+  const suffJoint = new Uint8Array(nItems * nReqs * nReqs);
+  for (let r1 = 0; r1 < nReqs; r1++) {
+    const s1 = reqs[r1 * 2];
+    for (let r2 = 0; r2 < nReqs; r2++) {
+      const s2 = reqs[r2 * 2];
+      let joint = false;
+      for (let i = nItems - 1; i >= 0; i--) {
+        if (itemFlat[i * 15 + s1] > 0 && itemFlat[i * 15 + s2] > 0) joint = true;
+        suffJoint[i * nReqs * nReqs + r1 * nReqs + r2] = joint ? 1 : 0;
+      }
+    }
+  }
+
   const state = {
     nodes: 0,
     bestColl: Infinity,
@@ -228,6 +279,11 @@ function solve(data) {
 
     // All first items done for this depth level — advance
     if (fi >= firstItems.length) {
+      // Guard: no items available at all — immediately done
+      if (firstItems.length === 0) {
+        self.postMessage({ type: 'done', solution: null, nodes: state.nodes, exhaustive: true });
+        return;
+      }
       self.postMessage({
         type: 'depthDone',
         depth: curDepth,
@@ -245,16 +301,20 @@ function solve(data) {
 
     // Process one first item at the current depth
     const first = firstItems[fi];
+
+    // Safety guard: skip items that are completely blocked (maxCounts=0)
+    // startSolve already filters these out of firstItems, but guard here too
+    if (mc[first] === 0) { fi++; setTimeout(processNext, 0); return; }
     const chosen = [first];
     const total = new Float64Array(15);
     const used = new Int32Array(nItems);
     for (let s = 0; s < 15; s++) total[s] = itemFlat[first * 15 + s];
     used[first] = 1;
 
-    // Check single-item solution (strict >)
+    // Check single-item solution (>= semantics)
     let sat = true;
     for (let r = 0; r < nReqs; r++) {
-      if (total[reqs[r * 2]] <= reqs[r * 2 + 1]) { sat = false; break; }
+      if (total[reqs[r * 2]] < reqs[r * 2 + 1]) { sat = false; break; }
     }
     if (sat) {
       const coll = countValid(total, humanFlat, nHumans);
@@ -272,7 +332,7 @@ function solve(data) {
 
     if (curDepth > 1 && !state.perfect && !shouldStop) {
       dfs(itemFlat, nItems, chosen, total, reqs, nReqs, curDepth, 1, first,
-          bps, humanFlat, nHumans, state, mc, used, suffMax);
+          bps, humanFlat, nHumans, state, mc, used, suffMax, suffJoint);
     }
 
     fi++;

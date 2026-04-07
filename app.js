@@ -44,6 +44,7 @@ let numWorkers = 0;
 let inherentCount = 0;
 let currentTarget = null;
 let ecoModeActive = false;
+let ecoModeValue  = 0; // 0=Normal, 1=World Eco, 2=Inventory Eco
 let cancelledByUser = false;
 let allSolutions = [];
 let solutionIndex = 0;
@@ -334,6 +335,7 @@ function buildItemGrid(containerId, itemList, kind) {
              data-kind="${kind}" data-index="${i}">
     `;
     container.appendChild(div);
+    container.lastElementChild.querySelector('.inv-item-input').addEventListener('change', persistInventory);
   });
 }
 
@@ -436,6 +438,7 @@ function handleInvCSVUpload(file) {
     });
     flashButton('load-inv-btn');
     showToast('Inventory loaded from CSV');
+    persistInventory();
   };
   reader.readAsText(file);
 }
@@ -452,6 +455,7 @@ function resetInventory() {
   document.getElementById('unlimited-check').checked = true;
   toggleUnlimited();
   document.querySelectorAll('.inv-item-input').forEach(inp => { inp.value = ''; });
+  persistInventory();
   showToast('Inventory reset');
 }
 
@@ -588,10 +592,141 @@ function buildHumanTable() {
   });
 }
 
+// ─── Profession Combobox ─────────────────────────────────────────────────────
+const _combo = { profIdx: null, profName: '', highlight: -1, isOpen: false };
+
+function _comboRender() {
+  const input = document.getElementById('profession-filter');
+  const dropdown = document.getElementById('profession-dropdown');
+  const q = (input.value || '').trim().toLowerCase();
+
+  const groups = {};
+  const order = [];
+  let fi = 0;
+  humans.forEach((h, i) => {
+    if (q && !h.profession.toLowerCase().includes(q) && !h.category.toLowerCase().includes(q)) return;
+    if (!groups[h.category]) { groups[h.category] = []; order.push(h.category); }
+    groups[h.category].push({ i, name: h.profession, fi: fi++ });
+  });
+
+  dropdown.innerHTML = '';
+  _combo.highlight = -1;
+
+  if (!order.length) {
+    const el = document.createElement('div');
+    el.className = 'prof-combo-empty';
+    el.textContent = 'No professions match';
+    dropdown.appendChild(el);
+    return;
+  }
+
+  for (const cat of order) {
+    const grp = document.createElement('div');
+    grp.className = 'prof-combo-group';
+    const lbl = document.createElement('div');
+    lbl.className = 'prof-combo-grouplabel';
+    lbl.textContent = cat;
+    grp.appendChild(lbl);
+    for (const { i, name } of groups[cat]) {
+      const el = document.createElement('div');
+      el.className = 'prof-combo-option' + (i === _combo.profIdx ? ' is-selected' : '');
+      el.textContent = name;
+      el.dataset.pi = i;
+      el.addEventListener('mousedown', e => { e.preventDefault(); _comboSelect(i, name); });
+      grp.appendChild(el);
+    }
+    dropdown.appendChild(grp);
+  }
+}
+
+function _comboPosition() {
+  const input = document.getElementById('profession-filter');
+  const dd = document.getElementById('profession-dropdown');
+  const r = input.getBoundingClientRect();
+  dd.style.left  = r.left + 'px';
+  dd.style.top   = (r.bottom + 4) + 'px';
+  dd.style.width = r.width + 'px';
+}
+
+function _comboOpen() {
+  if (_combo.isOpen) return;
+  _combo.isOpen = true;
+  document.getElementById('profession-combo').classList.add('open');
+  const dd = document.getElementById('profession-dropdown');
+  dd.removeAttribute('hidden');
+  _comboPosition();
+  _comboRender();
+  const cur = dd.querySelector('.is-selected');
+  if (cur) cur.scrollIntoView({ block: 'nearest' });
+}
+
+function _comboClose(restore) {
+  if (!_combo.isOpen) return;
+  _combo.isOpen = false;
+  document.getElementById('profession-combo').classList.remove('open');
+  document.getElementById('profession-dropdown').setAttribute('hidden', '');
+  if (restore) document.getElementById('profession-filter').value = _combo.profName;
+}
+
+function _comboSelect(idx, name) {
+  _combo.profIdx = idx;
+  _combo.profName = name;
+  document.getElementById('profession-select').value = idx;
+  _comboClose(true);
+  onProfessionChange();
+}
+
+function _comboMoveHighlight(delta) {
+  const opts = document.querySelectorAll('#profession-dropdown .prof-combo-option');
+  if (!opts.length) return;
+  const next = Math.max(0, Math.min(opts.length - 1, _combo.highlight + delta));
+  opts.forEach((el, i) => el.classList.toggle('is-highlighted', i === next));
+  _combo.highlight = next;
+  opts[next].scrollIntoView({ block: 'nearest' });
+}
+
+function _comboSelectHighlighted() {
+  const opts = document.querySelectorAll('#profession-dropdown .prof-combo-option');
+  if (_combo.highlight >= 0 && opts[_combo.highlight]) {
+    const el = opts[_combo.highlight];
+    _comboSelect(parseInt(el.dataset.pi), el.textContent);
+  }
+}
+
+function initCombobox() {
+  const input = document.getElementById('profession-filter');
+  const combo = document.getElementById('profession-combo');
+
+  input.addEventListener('focus', () => { input.select(); _comboOpen(); });
+  input.addEventListener('input', () => { if (!_combo.isOpen) _comboOpen(); else _comboRender(); });
+  input.addEventListener('keydown', e => {
+    switch (e.key) {
+      case 'ArrowDown': e.preventDefault(); _combo.isOpen ? _comboMoveHighlight(1)    : _comboOpen(); break;
+      case 'ArrowUp':   e.preventDefault(); _comboMoveHighlight(-1); break;
+      case 'Enter':     e.preventDefault(); _combo.isOpen ? _comboSelectHighlighted() : _comboOpen(); break;
+      case 'Escape':    e.preventDefault(); _comboClose(true); input.blur(); break;
+      case 'Tab':       _comboClose(true); break;
+    }
+  });
+  input.addEventListener('blur', () => { setTimeout(() => _comboClose(true), 150); });
+  combo.addEventListener('mousedown', e => {
+    if (e.target === input) return;
+    e.preventDefault();
+    _combo.isOpen ? (input.blur(), _comboClose(true)) : input.focus();
+  });
+  // Keep dropdown aligned when page scrolls or window resizes while open
+  window.addEventListener('scroll', () => { if (_combo.isOpen) _comboPosition(); }, true);
+  window.addEventListener('resize', () => { if (_combo.isOpen) _comboPosition(); });
+}
+
 function rebuildDropdown() {
   const sel = document.getElementById('profession-select');
-  sel.innerHTML = '<option value="">Choose a profession&hellip;</option>';
+  sel.innerHTML = '<option value="">\u2026</option>';
   populateDropdown();
+  _combo.profIdx = null;
+  _combo.profName = '';
+  document.getElementById('profession-filter').value = '';
+  if (_combo.isOpen) _comboRender();
 }
 
 // ─── Add Entry ───────────────────────────────────────────────────────────────
@@ -750,6 +885,9 @@ function startSolve() {
   if (currentTarget === null) return;
   const target = humans[currentTarget];
 
+  // Read eco mode now — used throughout this function before the global is updated
+  const pendingEcoMode = getEcoMode();
+
   // Build unified items and sort by specificity
   buildItems();
 
@@ -790,10 +928,10 @@ function startSolve() {
     }
   }
 
-  // Lower bound (strict >: need total > req, i.e. total >= req+1)
+  // Lower bound (>=: need total >= req)
   let initialLb = 1;
   for (const [si, val] of targetReqs) {
-    initialLb = Math.max(initialLb, Math.ceil((val + 1) / bestPerStat[si]));
+    initialLb = Math.max(initialLb, Math.ceil(val / bestPerStat[si]));
   }
 
   // Inherent subset count
@@ -817,10 +955,38 @@ function startSolve() {
     }
   });
 
+  // Inventory eco: also block items explicitly set to 0 even when unlimited-check is on
+  if (pendingEcoMode === 2) {
+    items.forEach((it, i) => {
+      const datakind = it.kind === 'Food' ? 'food' : 'memory';
+      const list     = it.kind === 'Food' ? foods : memories;
+      const listIdx  = list.findIndex(x => x.name === it.name);
+      if (listIdx >= 0) {
+        const v = getInvValue(datakind, listIdx);
+        // getInvValue returns 0 only when input is explicitly '0' (not empty)
+        if (v === 0) maxCounts[i] = 0;
+      }
+    });
+  }
+
   // Flatten item stats for workers
   const itemStatsForWorker = items.map(it => it.stats);
   const humanStatsForWorker = humans.map(h => h.stats);
-  const availabilityForWorker = items.map(it => it.availability || 0);
+  // For Inventory Eco (mode 2) use the entered inventory counts as the availability denominator
+  let availabilityForWorker;
+  if (pendingEcoMode === 2) {
+    availabilityForWorker = items.map(it => {
+      const kind = it.kind === 'Food' ? 'food' : 'memory';
+      const list = it.kind === 'Food' ? foods : memories;
+      const idx  = list.findIndex(x => x.name === it.name);
+      if (idx < 0) return 0;
+      const inp = document.querySelector(`.inv-item-input[data-kind="${kind}"][data-index="${idx}"]`);
+      if (!inp || inp.value === '') return 0; // unlimited = no eco cost
+      return parseInt(inp.value) || 0;
+    });
+  } else {
+    availabilityForWorker = items.map(it => it.availability || 0);
+  }
 
   const timeoutSec = parseInt(document.getElementById('timeout-input').value) || 30;
   let threads = parseInt(document.getElementById('threads-input').value) || 0;
@@ -831,22 +997,27 @@ function startSolve() {
   const maxSearchDepth = depthSetting > 0 ? depthSetting : 30;
   currentMaxSearchDepth = maxSearchDepth;
 
-  // Clamp maxCounts to maximum useful repetitions per item (strict >: need total > val)
+  // Clamp maxCounts to maximum useful repetitions per item (>=: need total >= val)
   for (let i = 0; i < items.length; i++) {
     let maxUseful = 0;
     for (const [si, val] of targetReqs) {
       if (items[i].stats[si] > 0) {
-        maxUseful = Math.max(maxUseful, Math.ceil((val + 1) / items[i].stats[si]));
+        maxUseful = Math.max(maxUseful, Math.ceil(val / items[i].stats[si]));
       }
     }
     if (maxUseful > 0) maxCounts[i] = Math.min(maxCounts[i], maxUseful);
   }
 
   // Split first-item indices across workers (interleaved for load balancing)
+  // Items with maxCounts=0 are completely excluded — they cannot appear in any solution
   const workerChunks = Array.from({ length: numWorkers }, () => []);
+  let wi = 0;
   for (let i = 0; i < items.length; i++) {
-    workerChunks[i % numWorkers].push(i);
+    if (maxCounts[i] > 0) { workerChunks[wi % numWorkers].push(i); wi++; }
   }
+
+  // If all workers ended up with no first items the problem is infeasible with this inventory
+  if (wi === 0) { showToast('No usable items with current inventory — all counts are 0'); return; }
 
   // UI state
   solving = true;
@@ -856,7 +1027,8 @@ function startSolve() {
   allSolutions = [];
   solutionIndex = 0;
   userBrowsingSolutions = false;
-  ecoModeActive = document.getElementById('eco-mode-check').checked;
+  ecoModeValue  = pendingEcoMode; // committed from the value read at the top of startSolve
+  ecoModeActive = ecoModeValue > 0;
   cancelledByUser = false;
   workerNodes = new Array(numWorkers).fill(0);
   workerDepths = new Array(numWorkers).fill(0);
@@ -1104,6 +1276,19 @@ function displayResults(elapsed, scroll) {
     counts[key].count++;
   });
 
+  // Annotate each counted item with the user's inventory count (for inventory eco display)
+  Object.values(counts).forEach(c => {
+    const datakind = c.kind === 'Food' ? 'food' : 'memory';
+    const list = c.kind === 'Food' ? foods : memories;
+    const idx = list.findIndex(x => x.name === c.name);
+    if (idx >= 0) {
+      const v = getInvValue(datakind, idx);
+      c.invCount = v >= 9999 ? null : v; // null = not set / unlimited
+    } else {
+      c.invCount = null;
+    }
+  });
+
   const foodItems = Object.values(counts).filter(c => c.kind === 'Food');
   const memItems = Object.values(counts).filter(c => c.kind === 'Memory');
 
@@ -1119,7 +1304,7 @@ function displayResults(elapsed, scroll) {
   humans.forEach((h, hi) => {
     let valid = true;
     for (let s = 0; s < 15; s++) {
-      if (h.stats[s] > 0 && sol.total[s] <= h.stats[s]) { valid = false; break; }
+      if (h.stats[s] > 0 && sol.total[s] < h.stats[s]) { valid = false; break; }
     }
     if (valid) {
       const isTarget = hi === currentTarget;
@@ -1131,7 +1316,10 @@ function displayResults(elapsed, scroll) {
 
   let badgeExtra = '';
   if (ecoModeActive && sol.resourceCost != null) {
-    badgeExtra = ` &mdash; <span class="resource-cost-badge" title="Resource cost: total items used divided by their world availability. Lower means less impact on shared resources.">${(sol.resourceCost * 100).toFixed(1)}% resource cost</span>`;
+    const costTooltip = ecoModeValue === 2
+      ? 'Resource cost: items used relative to your inventory counts. Lower means less personal inventory impact.'
+      : 'Resource cost: items used relative to their world availability. Lower means less impact on shared resources.';
+    badgeExtra = ` &mdash; <span class="resource-cost-badge" title="${costTooltip}">${(sol.resourceCost * 100).toFixed(1)}% resource cost</span>`;
   }
   let html = `<div class="result-summary">
     <span class="result-badge">${sol.items.length} item${sol.items.length !== 1 ? 's' : ''} &mdash; matches ${sol.collateral} profession${sol.collateral !== 1 ? 's' : ''}${badgeExtra}</span>
@@ -1166,8 +1354,8 @@ function displayResults(elapsed, scroll) {
   html += `<div class="result-section"><div class="result-section-title">Stats Achieved</div><table class="stats-table">`;
   targetReqs.forEach(([si, req]) => {
     const val = sol.total[si];
-    const ok = val > req;
-    const cls = ok ? (val > req + 1 ? 'stat-over' : 'stat-ok') : 'stat-miss';
+    const ok = val >= req;
+    const cls = ok ? (val > req ? 'stat-over' : 'stat-ok') : 'stat-miss';
     // Build breakdown tooltip
     let breakdown = '';
     if (statBreakdown[si]) {
@@ -1298,9 +1486,20 @@ function recipeItemHTML(c) {
   }
   const tooltip = statParts.length > 0 ? esc(statParts.join('\n')) : '';
   let pctHtml = '';
-  if (ecoModeActive && c.availability > 0) {
-    const pct = (c.count / c.availability * 100).toFixed(1);
-    pctHtml = `<span class="recipe-item-pct" title="Using ${c.count} of ${Math.round(c.availability)} available worldwide (${pct}%)">(${pct}%)</span>`;
+  if (ecoModeActive) {
+    if (ecoModeValue === 2) {
+      // Inventory eco: denominator is the user's own inventory count
+      if (c.invCount !== null && c.invCount > 0) {
+        const pct = (c.count / c.invCount * 100).toFixed(1);
+        pctHtml = `<span class="recipe-item-pct" title="Using ${c.count} of ${c.invCount} in your inventory (${pct}%)">(${pct}%)</span>`;
+      }
+    } else {
+      // World eco: denominator is global world availability
+      if (c.availability > 0) {
+        const pct = (c.count / c.availability * 100).toFixed(1);
+        pctHtml = `<span class="recipe-item-pct" title="Using ${c.count} of ${Math.round(c.availability)} available worldwide (${pct}%)">(${pct}%)</span>`;
+      }
+    }
   }
   return `<div class="recipe-item" title="${tooltip}">
     <img class="recipe-item-img" src="${imgUrl}" alt="${esc(c.name)}"
@@ -1349,9 +1548,31 @@ function applySolution() {
     inp.value = String(Math.max(0, cur - c.count));
   }
 
-  saveInventory();
   document.getElementById('apply-solution-wrap').classList.add('hidden');
+  persistInventory();
   showToast('Resources subtracted from inventory');
+}
+
+// ─── Eco Mode 3-way Switch ───────────────────────────────────────────────────
+function getEcoMode() {
+  const btn = document.querySelector('.eco-seg.active');
+  return btn ? parseInt(btn.dataset.mode) : 0;
+}
+
+function setEcoMode(mode) {
+  document.querySelectorAll('.eco-seg').forEach(btn => {
+    btn.classList.toggle('active', parseInt(btn.dataset.mode) === mode);
+  });
+}
+
+// ─── Inventory Persistence ───────────────────────────────────────────────────
+function persistInventory() {
+  const data = {};
+  document.querySelectorAll('.inv-item-input').forEach(inp => {
+    if (inp.value !== '') data[`${inp.dataset.kind}_${inp.dataset.index}`] = parseInt(inp.value);
+  });
+  data._unlimited = document.getElementById('unlimited-check').checked;
+  try { localStorage.setItem('tlc_inventory', JSON.stringify(data)); } catch (e) { /* quota */ }
 }
 
 // ─── Toggle Helpers ──────────────────────────────────────────────────────────
@@ -1390,11 +1611,14 @@ async function init() {
   buildEditTables();
 
   // Event listeners
-  document.getElementById('profession-select').addEventListener('change', onProfessionChange);
+  initCombobox();
   document.getElementById('solve-btn').addEventListener('click', startSolve);
   document.getElementById('cancel-btn').addEventListener('click', cancelSolve);
   document.getElementById('pause-btn').addEventListener('click', togglePause);
-  document.getElementById('unlimited-check').addEventListener('change', toggleUnlimited);
+  document.getElementById('unlimited-check').addEventListener('change', () => {
+    toggleUnlimited();
+    persistInventory();
+  });
   document.getElementById('save-inv-btn').addEventListener('click', saveInventory);
   document.getElementById('load-inv-btn').addEventListener('click', () => loadInventory());
   document.getElementById('inv-csv-upload').addEventListener('change', function() { handleInvCSVUpload(this.files[0]); });
@@ -1416,6 +1640,11 @@ async function init() {
   setupToggle('edit-toggle', 'edit-body');
   setupToggle('settings-toggle', 'settings-body');
   setupTabs();
+
+  // 3-way eco mode switch
+  document.querySelectorAll('.eco-seg').forEach(btn => {
+    btn.addEventListener('click', () => setEcoMode(parseInt(btn.dataset.mode)));
+  });
 
   // Keyboard: Enter triggers solve
   document.addEventListener('keydown', (e) => {

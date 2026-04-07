@@ -141,7 +141,7 @@
         let valid = true;
         const base = h * 15;
         for (let s = 0; s < 15; s++) {
-          if (humanFlat[base + s] > 0 && total[s] <= humanFlat[base + s]) {
+          if (humanFlat[base + s] > 0 && total[s] < humanFlat[base + s]) {
             valid = false; break;
           }
         }
@@ -276,8 +276,11 @@
       total[0] = 11; // now exceeds both (11>5, 11>10)
       assertEqual(countValid(total, humanFlat, 2), 2, 'matches both professions');
 
-      total[0] = 5; // equals req but does not exceed — matches neither
-      assertEqual(countValid(total, humanFlat, 2), 0, 'matches no professions');
+      total[0] = 5; // equals req — matches human 0 with >= semantics
+      assertEqual(countValid(total, humanFlat, 2), 1, 'equals requirement — matches human 0 (>= semantics)');
+
+      total[0] = 4; // below req — matches neither
+      assertEqual(countValid(total, humanFlat, 2), 0, 'below requirement — matches no professions');
     })();
 
     section('CSV roundtrip (food)');
@@ -306,6 +309,17 @@
       const s = memoryStats(parsed.rows[0]);
       assertEqual(s[12], 100, 'Ash Notebook logic is 100 (updated from 10)');
       assertEqual(s[5], 100, 'Ash Notebook adaptability');
+    })();
+
+    section('Teddy Bear memory \u2014 same empathy as Tommy (empathy=3)');
+    (function() {
+      const csv = 'Memory;Adaptability;Communication;Creativity;Discipline;Empathy;Focus;Intellect;Leadership;Logic;Patience;Wisdom;WordCount\nTeddy Bear;;;;;3;;;;;;;17\n';
+      const parsed = parseCSV(csv);
+      const s = memoryStats(parsed.rows[0]);
+      assertEqual(s[9], 3, 'Teddy Bear empathy is 3');
+      assertEqual(s[5], 0, 'Teddy Bear has no adaptability');
+      assertEqual(s[7], 0, 'Teddy Bear has no communication');
+      assertEqual(s[14], 0, 'Teddy Bear has no wisdom');
     })();
 
     section('Image URL for custom entries');
@@ -377,7 +391,7 @@
           let maxUseful = 0;
           for (const [si, val] of targetReqs) {
             if (items[i].stats[si] > 0) {
-              maxUseful = Math.max(maxUseful, Math.ceil((val + 1) / items[i].stats[si]));
+              maxUseful = Math.max(maxUseful, Math.ceil(val / items[i].stats[si]));
             }
           }
           if (maxUseful > 0) maxCounts[i] = Math.min(maxCounts[i], maxUseful);
@@ -385,31 +399,31 @@
         return maxCounts;
       }
 
-      const targetReqs = [[4, 10]]; // intellect=10 (need >10)
+      const targetReqs = [[4, 10]]; // intellect=10 (need >=10)
 
-      // Item gives intellect=3 → ceil(11/3)=4
+      // Item gives intellect=3 → ceil(10/3)=4
       const c1 = clampMaxCounts([{ stats: [0,0,0,0,3,0,0,0,0,0,0,0,0,0,0] }], targetReqs, [9999]);
-      assertEqual(c1[0], 4, 'clamp: ceil(11/3)=4 for intellect=3 item');
+      assertEqual(c1[0], 4, 'clamp: ceil(10/3)=4 for intellect=3 item');
 
-      // Item gives intellect=5 → ceil(11/5)=3
+      // Item gives intellect=5 → ceil(10/5)=2
       const c2 = clampMaxCounts([{ stats: [0,0,0,0,5,0,0,0,0,0,0,0,0,0,0] }], targetReqs, [9999]);
-      assertEqual(c2[0], 3, 'clamp: ceil(11/5)=3 for intellect=5 item');
+      assertEqual(c2[0], 2, 'clamp: ceil(10/5)=2 for intellect=5 item');
 
-      // Item gives intellect=10 → ceil(11/10)=2
+      // Item gives intellect=10 → ceil(10/10)=1
       const c3 = clampMaxCounts([{ stats: [0,0,0,0,10,0,0,0,0,0,0,0,0,0,0] }], targetReqs, [9999]);
-      assertEqual(c3[0], 2, 'clamp: ceil(11/10)=2 for intellect=10 item');
+      assertEqual(c3[0], 1, 'clamp: ceil(10/10)=1 for intellect=10 item');
 
       // Resource limit lower than useful max — not increased by clamping
       const c4 = clampMaxCounts([{ stats: [0,0,0,0,3,0,0,0,0,0,0,0,0,0,0] }], targetReqs, [2]);
       assertEqual(c4[0], 2, 'clamp: resource limit of 2 is not increased (useful=4)');
 
       // Item relevant to highest-demand stat dominates
-      const targetMulti = [[3, 6], [4, 10]]; // strength>6 (ceil(7/3)=3), intellect>10 (ceil(11/3)=4)
+      const targetMulti = [[3, 6], [4, 10]]; // strength>=6 (ceil(6/3)=2), intellect>=10 (ceil(10/3)=4)
       const c5 = clampMaxCounts(
         [{ stats: [0,0,0,3,3,0,0,0,0,0,0,0,0,0,0] }], // strength=3, intellect=3
         targetMulti, [9999]
       );
-      assertEqual(c5[0], 4, 'clamp: max over all required stats dominates (intellect needs 4 vs strength needs 3)');
+      assertEqual(c5[0], 4, 'clamp: max over all required stats dominates (intellect needs 4 vs strength needs 2)');
 
       // Item irrelevant to all target stats — count unchanged
       const c6 = clampMaxCounts([{ stats: [5,0,0,0,0,0,0,0,0,0,0,0,0,0,0] }], targetReqs, [9999]);
@@ -444,7 +458,7 @@
         worker.terminate();
         asyncEnd();
       };
-      // 1 item: intellect=6; 1 human: requires intellect=5 (need total > 5)
+      // 1 item: intellect=6; 1 human: requires intellect=5 (need total >= 5)
       worker.postMessage({
         type: 'solve',
         items: [[0,0,0,0,6, 0,0,0,0,0,0,0,0,0,0]],
@@ -472,9 +486,9 @@
         if (e.data.solution) {
           assertEqual(e.data.solution.items.length, 2, '2-item: solution uses exactly 2 items');
           assertEqual(e.data.solution.collateral, 1, '2-item: matches 1 profession');
-          // Verify both stats exceeded (strict >)
-          assert(e.data.solution.total[3] > 5, '2-item: strength requirement exceeded');
-          assert(e.data.solution.total[4] > 5, '2-item: intellect requirement exceeded');
+          // Verify both stats met (>= semantics; totals are both 6 >= 5)
+          assert(e.data.solution.total[3] >= 5, '2-item: strength requirement met (>= semantics)');
+          assert(e.data.solution.total[4] >= 5, '2-item: intellect requirement met (>= semantics)');
         }
         worker.terminate();
         asyncEnd();
@@ -707,6 +721,974 @@
         timeoutSec: 5,
         ecoMode: false,
         availability: [50],
+      });
+    })();
+
+    // ── Inventory limits enforced: maxCounts=0 blocks items ──
+    asyncBegin();
+    (function() {
+      // item0: intellect=10 — blocked by maxCounts=0 (inventory count=0)
+      // item1: creativity=10 — blocked by maxCounts=0
+      // item2: intellect=6, creativity=6 — allowed (maxCounts=9999)
+      // Target: intellect>=5, creativity>=5
+      // Only item2 can be used; solution must use item2 only
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'inv-limit worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 maxCounts=0 prevents item from appearing in solution');
+        assert(e.data.solution !== null, 'inv-limit: found a solution using the allowed item');
+        if (e.data.solution) {
+          // item2 is at index 2 in the items array
+          assert(e.data.solution.items.every(i => i === 2), 'inv-limit: solution only uses item2 (index 2), never items with maxCounts=0');
+          assert(e.data.solution.total[4] >= 5, 'inv-limit: intellect requirement met');
+          assert(e.data.solution.total[6] >= 5, 'inv-limit: creativity requirement met');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [
+          [0,0,0,0,10, 0,0,0,0,0,0,0,0,0,0],  // item0: intellect=10, BLOCKED
+          [0,0,0,0,0,  0,10,0,0,0,0,0,0,0,0],  // item1: creativity=10, BLOCKED
+          [0,0,0,0,6,  0,6, 0,0,0,0,0,0,0,0],  // item2: intellect=6, creativity=6, ALLOWED
+        ],
+        humans: [[0,0,0,0,5, 0,5,0,0,0,0,0,0,0,0]],
+        targetReqs: [[4, 5], [6, 5]],
+        bestPerStat: [0,0,0,0,6, 0,6,0,0,0,0,0,0,0,0],
+        inherentCount: 1,
+        firstItems: [2], // only item2 assigned to this worker (0 and 1 are blocked anyway)
+        initialLb: 1,
+        maxSearchDepth: 5,
+        maxCounts: [0, 0, 9999],  // item0 and item1 are blocked
+        timeoutSec: 5,
+        ecoMode: false,
+        availability: [10, 10, 100],
+      });
+    })();
+
+    // ── Eco percentage display logic ──
+    section('Eco percentage display \u2014 inventory eco vs world eco');
+    (function() {
+      // Simulate the recipeItemHTML percentage logic
+      function calcEcoPct(count, worldAvail, invCount, ecoModeValue) {
+        if (ecoModeValue === 2) {
+          if (invCount !== null && invCount > 0) return (count / invCount * 100).toFixed(1);
+          return null;
+        } else {
+          if (worldAvail > 0) return (count / worldAvail * 100).toFixed(1);
+          return null;
+        }
+      }
+
+      // Camera: count=4, worldAvail=29, invCount=4
+      assertEqual(calcEcoPct(4, 29, 4, 1), '13.8', 'world eco: uses world availability as denominator');
+      assertEqual(calcEcoPct(4, 29, 4, 2), '100.0', 'inventory eco: uses inventory count as denominator');
+      assertEqual(calcEcoPct(4, 29, null, 2), null, 'inventory eco: unlimited item (invCount=null) has no percentage');
+      assertEqual(calcEcoPct(0, 29, 4, 2), '0.0', 'inventory eco: 0 used = 0%');
+      assertEqual(calcEcoPct(2, 0, null, 1), null, 'world eco: no world availability = no percentage');
+      // Tooltip should differ between modes
+      const invLabel = (count, invCount) => `Using ${count} of ${invCount} in your inventory`;
+      const worldLabel = (count, avail) => `Using ${count} of ${avail} available worldwide`;
+      assertEqual(invLabel(4, 4), 'Using 4 of 4 in your inventory', 'inventory eco tooltip text');
+      assertEqual(worldLabel(4, 29), 'Using 4 of 29 available worldwide', 'world eco tooltip text');
+    })();
+
+    // ── Manual requirement editing \u2014 targetReqs reflects edited stats ──
+    section('Manual requirement editing \u2014 targetReqs reflects edited stats');
+    (function() {
+      // Simulate the targetReqs-building logic from startSolve
+      function buildTargetReqs(stats) {
+        const result = [];
+        stats.forEach((val, si) => {
+          if (val > 0) result.push([si, val]);
+        });
+        return result;
+      }
+
+      // Default sculptor stats: weight=20, height=30, life_exp=80, creativity=20, communication=10, focus=15
+      const sculptorStats = [20, 30, 80, 0, 0, 0, 20, 10, 0, 0, 15, 0, 0, 0, 0];
+      const reqs = buildTargetReqs(sculptorStats);
+      assert(reqs.length === 6, 'sculptor has 6 stat requirements by default (weight, height, life_exp, creativity, communication, focus)');
+      assert(reqs.some(([si, v]) => si === 6 && v === 20), 'creativity=20 in requirements');
+      assert(reqs.some(([si, v]) => si === 10 && v === 15), 'focus=15 in requirements');
+
+      // Edit creativity up to 30
+      sculptorStats[6] = 30;
+      const reqs2 = buildTargetReqs(sculptorStats);
+      assert(reqs2.some(([si, v]) => si === 6 && v === 30), 'after edit: creativity=30 in requirements');
+
+      // Set focus to 0 (remove requirement)
+      sculptorStats[10] = 0;
+      const reqs3 = buildTargetReqs(sculptorStats);
+      assert(!reqs3.some(([si]) => si === 10), 'after zeroing focus: focus removed from requirements');
+      assertEqual(reqs3.length, 5, 'only 5 requirements remain after zeroing focus');
+
+      // initialLb with edited reqs (>= semantics)
+      function calcInitialLb(targetReqs, bestPerStat) {
+        let lb = 1;
+        for (const [si, val] of targetReqs) {
+          lb = Math.max(lb, Math.ceil(val / bestPerStat[si]));
+        }
+        return lb;
+      }
+      // bestPerStat for creativity=6 and only creativity needed
+      const reqCreativity30 = [[6, 30]];
+      const bps = [0,0,0,0,0,0,6,0,0,0,0,0,0,0,0];
+      assertEqual(calcInitialLb(reqCreativity30, bps), 5, 'initialLb: ceil(30/6)=5 for creativity item');
+
+      // Editing requirement DOWN should not break lower bound
+      const reqCreativity6 = [[6, 6]];
+      assertEqual(calcInitialLb(reqCreativity6, bps), 1, 'initialLb: ceil(6/6)=1 for exact match');
+    })();
+
+    // ── Manual stat editing \u2014 solver uses updated requirement values ──
+    asyncBegin();
+    (function() {
+      // Target ORIGINALLY: intellect=5, creativity=5
+      // EDITED: user increases creativity from 5 to 8
+      // item0: intellect=6, creativity=3 — satisfies original creativity=5 alone? NO (3<5); satisfies edited? 3<8 NO
+      // item1: intellect=4, creativity=5 — neither alone is enough for edited
+      // item2: intellect=0, creativity=5 — creativity only, not enough for edited creativity=8
+      // item3: intellect=6, creativity=5 — together with item2 gives intellect+creativity, and creativity is exactly 5, not enough for edited=8
+      // Answer: need item0 + item2 (intellect=6, creativity=3+5=8) to meet both edited requirements
+      // Without edit (creativity=5): item0 alone (intellect=6>=5, creativity=3<5 NOT ENOUGH), need item0+item2
+      // Actually with creativity=5: item3 alone (intellect=6>=5, creativity=5>=5) satisfies ORIGINAL requirements
+      // With edited creativity=8: item3 alone (creativity=5 < 8) is NOT enough; need item0+item2
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'edited-req worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 uses edited requirement values (creativity raised from 5 to 8)');
+        assert(e.data.solution !== null, 'edited-req: solution found for edited requirements');
+        if (e.data.solution) {
+          // With edited creativity=8, the solution must achieve creativity>=8
+          assert(e.data.solution.total[6] >= 8, 'edited-req: creativity meets edited requirement of 8');
+          assert(e.data.solution.total[4] >= 5, 'edited-req: intellect requirement still met');
+          assertEqual(e.data.solution.items.length, 2, 'edited-req: needs 2 items to meet raised creativity');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      // Items:
+      //   item0: intellect=6, creativity=3
+      //   item1: intellect=0, creativity=5
+      // Target (after edit): intellect>=5, creativity>=8
+      // item0+item1 gives intellect=6>=5 AND creativity=3+5=8>=8 ✓
+      worker.postMessage({
+        type: 'solve',
+        items: [
+          [0,0,0,0,6, 0,3,0,0,0,0,0,0,0,0],   // item0: intellect=6, creativity=3
+          [0,0,0,0,0, 0,5,0,0,0,0,0,0,0,0],   // item1: creativity=5
+        ],
+        humans: [[0,0,0,0,5, 0,8,0,0,0,0,0,0,0,0]],  // edited: creativity=8
+        targetReqs: [[4, 5], [6, 8]],   // edited requirements
+        bestPerStat: [0,0,0,0,6, 0,5,0,0,0,0,0,0,0,0],
+        inherentCount: 1,
+        firstItems: [0, 1],
+        initialLb: 2,  // ceil(8/5)=2
+        maxSearchDepth: 5,
+        maxCounts: [9999, 9999],
+        timeoutSec: 5,
+        ecoMode: false,
+        availability: [0, 0],
+      });
+    })();
+
+    // ── Inventory eco + unlimited: items explicitly set to 0 must be blocked ──
+    asyncBegin();
+    (function() {
+      // Simulates: user has unlimited=true, inventory eco mode active
+      // item0: creativity=10, avail=0 (user set count=0 → should be blocked by maxCounts=0)
+      // item1: creativity=6, avail=6 (user has 6)
+      // Target: creativity=5
+      // Only item1 should appear in solution
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'inv-eco-zero worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 inventory eco: item with count=0 blocked even in unlimited mode');
+        assert(e.data.solution !== null, 'inv-eco-zero: solution found');
+        if (e.data.solution) {
+          assert(e.data.solution.items.every(i => i === 1), 'inv-eco-zero: only item1 used (item0 with count=0 blocked)');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [
+          [0,0,0,0,0, 0,10,0,0,0,0,0,0,0,0],  // item0: creativity=10, BLOCKED (count=0)
+          [0,0,0,0,0, 0,6, 0,0,0,0,0,0,0,0],  // item1: creativity=6, ALLOWED
+        ],
+        humans: [[0,0,0,0,0, 0,5,0,0,0,0,0,0,0,0]],
+        targetReqs: [[6, 5]],
+        bestPerStat: [0,0,0,0,0, 0,6,0,0,0,0,0,0,0,0],
+        inherentCount: 1,
+        firstItems: [1],   // only item1 is valid first item (item0 blocked)
+        initialLb: 1,
+        maxSearchDepth: 5,
+        maxCounts: [0, 9999],  // item0 maxCount=0 mirrors the fix in startSolve
+        timeoutSec: 5,
+        ecoMode: true,
+        availability: [0, 6],   // item0 has 0 eco cost (should not matter since it's blocked)
+      });
+    })();
+
+    // ════════════════════════════════════════════════════════════════════════
+    // NEW TESTS (20 additional)
+    // ════════════════════════════════════════════════════════════════════════
+
+    // ── parseCSV: header whitespace trimming ──
+    section('parseCSV \u2014 header whitespace trimming');
+    (function() {
+      const csv = ' Name ; Value \n alpha ; 10 \n';
+      const r = parseCSV(csv);
+      assertEqual(r.headers[0], 'Name', 'leading/trailing whitespace trimmed from header');
+      assertEqual(r.headers[1], 'Value', 'second header trimmed');
+      assertEqual(r.rows[0]['Name'], 'alpha', 'row value also whitespace-trimmed');
+    })();
+
+    // ── parseCSV: multiple semicolons in row ──
+    section('parseCSV \u2014 row with more columns than headers');
+    (function() {
+      const csv = 'A;B\nfoo;bar;baz\n';
+      const r = parseCSV(csv);
+      assertEqual(r.rows[0]['A'], 'foo', 'first column still parsed correctly');
+      assertEqual(r.rows[0]['B'], 'bar', 'second column still parsed correctly');
+    })();
+
+    // ── normalize: replaces non-breaking space ──
+    section('normalize \u2014 non-breaking space');
+    (function() {
+      assertEqual(normalize('hello\u00a0world'), 'hello world', 'non-breaking space becomes regular space');
+      assertEqual(normalize('  hello  '), 'hello', 'trims surrounding whitespace');
+    })();
+
+    // ── esc: HTML entity escaping ──
+    section('esc \u2014 HTML entity escaping');
+    (function() {
+      assertEqual(esc('<b>'), '&lt;b&gt;', 'angle brackets escaped');
+      assertEqual(esc('a & b'), 'a &amp; b', 'ampersand escaped');
+      assertEqual(esc('"quoted"'), '&quot;quoted&quot;', 'double quotes escaped');
+      assertEqual(esc('safe'), 'safe', 'safe string unchanged');
+    })();
+
+    // ── getItemImageUrl: URL encoding ──
+    section('getItemImageUrl \u2014 URL formatting');
+    (function() {
+      const url = getItemImageUrl("Tommy's Book");
+      assert(url.includes('Tommy'), 'name appears in URL');
+      assert(url.includes('%27'), "apostrophe encoded as %27");
+      assert(url.includes('_'), 'spaces replaced with underscores');
+    })();
+
+    // ── formatNum: various scales ──
+    section('formatNum \u2014 number scale formatting');
+    (function() {
+      assertEqual(formatNum(999), '999', 'below 1K: raw number');
+      assertEqual(formatNum(1000), '1.0K', 'exactly 1K');
+      assertEqual(formatNum(1500), '1.5K', '1.5K');
+      assertEqual(formatNum(1000000), '1.0M', 'exactly 1M');
+      assertEqual(formatNum(2000000000), '2.0B', '2B');
+    })();
+
+    // ── foodStats: mental stats are zero ──
+    section('foodStats \u2014 only physical stats filled');
+    (function() {
+      const row = { Weight: '10', Height: '5', 'Life Exp': '3', Strength: '2', Intellect: '1' };
+      const s = foodStats(row);
+      assertEqual(s[0], 10, 'weight');
+      assertEqual(s[1], 5, 'height');
+      assertEqual(s[2], 3, 'life_exp');
+      assertEqual(s[3], 2, 'strength');
+      assertEqual(s[4], 1, 'intellect');
+      // All mental stats (indices 5-14) must be zero
+      assert(s.slice(5).every(v => v === 0), 'all mental stats are zero for food');
+    })();
+
+    // ── memoryStats: all 10 mental stat columns mapped ──
+    section('memoryStats \u2014 all mental stat columns mapped');
+    (function() {
+      const row = {
+        Adaptability: '1', Communication: '2', Creativity: '3', Discipline: '4',
+        Empathy: '5', Focus: '6', Intellect: '7', Leadership: '8',
+        Logic: '9', Patience: '10', Wisdom: '11',
+      };
+      const s = memoryStats(row);
+      assertEqual(s[4],  7,  'intellect at index 4');
+      assertEqual(s[5],  1,  'adaptability at index 5');
+      assertEqual(s[6],  3,  'creativity at index 6');
+      assertEqual(s[7],  2,  'communication at index 7');
+      assertEqual(s[8],  4,  'discipline at index 8');
+      assertEqual(s[9],  5,  'empathy at index 9');
+      assertEqual(s[10], 6,  'focus at index 10');
+      assertEqual(s[11], 8,  'leadership at index 11');
+      assertEqual(s[12], 9,  'logic at index 12');
+      assertEqual(s[13], 10, 'patience at index 13');
+      assertEqual(s[14], 11, 'wisdom at index 14');
+      // Physical stats must be zero for memory
+      assert(s.slice(0,4).every(v => v === 0), 'physical stats (0-3) are zero for memory');
+    })();
+
+    // ── countValid: zero-requirement profession always matches ──
+    section('countValid \u2014 profession with all-zero requirements always matches');
+    (function() {
+      const humanFlat = new Float64Array(15);    // all zeros
+      const total = new Float64Array(15);         // all zeros
+      assertEqual(countValid(total, humanFlat, 1), 1, 'all-zero profession is always satisfied');
+      // Even with negative (i.e. zero) required stats, any total qualifies
+      const total2 = new Float64Array([5,3,2,0,0,0,0,0,0,0,0,0,0,0,0]);
+      assertEqual(countValid(total2, humanFlat, 1), 1, 'non-zero total also satisfies zero-req profession');
+    })();
+
+    // ── countValid: partial satisfaction ──
+    section('countValid \u2014 only professions with all requirements met are counted');
+    (function() {
+      // profession 0: needs creativity=6 → stat index 6
+      // profession 1: needs creativity=3
+      // profession 2: needs creativity=6 AND intellect=5
+      const humanFlat = new Float64Array([
+        0,0,0,0,0, 0,6,0,0,0,0,0,0,0,0,  // prof0: creativity=6
+        0,0,0,0,0, 0,3,0,0,0,0,0,0,0,0,  // prof1: creativity=3
+        0,0,0,0,5, 0,6,0,0,0,0,0,0,0,0,  // prof2: intellect=5, creativity=6
+      ]);
+      // Total with creativity=4, intellect=5: satisfies prof1 only
+      const t1 = new Float64Array([0,0,0,0,5, 0,4,0,0,0,0,0,0,0,0]);
+      assertEqual(countValid(t1, humanFlat, 3), 1, 'creativity=4: only prof1 (needs 3) satisfied');
+      // Total with creativity=7, intellect=5: satisfies all three
+      const t2 = new Float64Array([0,0,0,0,5, 0,7,0,0,0,0,0,0,0,0]);
+      assertEqual(countValid(t2, humanFlat, 3), 3, 'creativity=7, intellect=5: all 3 professions satisfied');
+      // Total with creativity=6, intellect=0: satisfies prof0 and prof1, NOT prof2
+      const t3 = new Float64Array([0,0,0,0,0, 0,6,0,0,0,0,0,0,0,0]);
+      assertEqual(countValid(t3, humanFlat, 3), 2, 'creativity=6, no intellect: prof0 and prof1 satisfied');
+    })();
+
+    // ── Worker: single-item solution (depth 1) ──
+    asyncBegin();
+    (function() {
+      // item0: creativity=10 — satisfies the requirement alone
+      // Expected: solution at depth 1, items=[0]
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'depth1 worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 single-item solution (depth 1)');
+        assert(e.data.solution !== null, 'depth1: solution found');
+        if (e.data.solution) {
+          assertEqual(e.data.solution.items.length, 1, 'depth1: exactly 1 item');
+          assertEqual(e.data.solution.items[0], 0, 'depth1: item0 used');
+          assert(e.data.solution.total[6] >= 7, 'depth1: creativity requirement met');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [[0,0,0,0,0, 0,10,0,0,0,0,0,0,0,0]],
+        humans: [[0,0,0,0,0, 0,7, 0,0,0,0,0,0,0,0]],
+        targetReqs: [[6, 7]],
+        bestPerStat: [0,0,0,0,0, 0,10,0,0,0,0,0,0,0,0],
+        inherentCount: 1, firstItems: [0], initialLb: 1, maxSearchDepth: 5,
+        maxCounts: [9999], timeoutSec: 5, ecoMode: false, availability: [0],
+      });
+    })();
+
+    // ── Worker: same item used twice (maxCounts=2) ──
+    asyncBegin();
+    (function() {
+      // item0: creativity=4 — need 2 of it to meet creativity=8
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'maxcounts2 worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 same item used twice (maxCounts=2)');
+        assert(e.data.solution !== null, 'maxcounts2: solution found');
+        if (e.data.solution) {
+          assertEqual(e.data.solution.items.length, 2, 'maxcounts2: needs 2 uses');
+          assert(e.data.solution.total[6] >= 8, 'maxcounts2: creativity=8 met');
+          assert(e.data.solution.items.every(i => i === 0), 'maxcounts2: both uses are item0');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [[0,0,0,0,0, 0,4,0,0,0,0,0,0,0,0]],
+        humans: [[0,0,0,0,0, 0,8,0,0,0,0,0,0,0,0]],
+        targetReqs: [[6, 8]],
+        bestPerStat: [0,0,0,0,0, 0,4,0,0,0,0,0,0,0,0],
+        inherentCount: 1, firstItems: [0], initialLb: 2, maxSearchDepth: 5,
+        maxCounts: [2], timeoutSec: 5, ecoMode: false, availability: [0],
+      });
+    })();
+
+    // ── Worker: impossible requirement (required stat not in any item) ──
+    asyncBegin();
+    (function() {
+      // item0: creativity=10 — target needs empathy (stat 9), no item has it
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'impossible worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 impossible requirement returns no solution');
+        assert(e.data.solution === null, 'impossible: solution is null when req stat absent from all items');
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [[0,0,0,0,0, 0,10,0,0,0,0,0,0,0,0]],  // only creativity
+        humans: [[0,0,0,0,0, 0,0, 0,0,5,0,0,0,0,0]],  // needs empathy=5
+        targetReqs: [[9, 5]],
+        bestPerStat: [0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0],  // no item can supply empathy
+        inherentCount: 1, firstItems: [0], initialLb: 1, maxSearchDepth: 3,
+        maxCounts: [9999], timeoutSec: 5, ecoMode: false, availability: [0],
+      });
+    })();
+
+    // ── Worker: collateral minimization ──
+    asyncBegin();
+    (function() {
+      // Target: creativity=4
+      // human0 (target): creativity=4
+      // human1 (collateral-risk): creativity=8 (harder to accidentally satisfy)
+      // item0: creativity=4 (satisfies target; creativity=4 < 8 so does NOT trigger human1)
+      // item1: creativity=9 (satisfies target AND accidentally triggers human1)
+      // Solver should prefer item0 (collateral=1) over item1 (collateral=2)
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'collateral-min worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 collateral minimization selects lower-collateral path');
+        assert(e.data.solution !== null, 'collateral-min: solution found');
+        if (e.data.solution) {
+          assertEqual(e.data.solution.collateral, 1, 'collateral-min: only target matched (collateral=1)');
+          assertEqual(e.data.solution.items[0], 0, 'collateral-min: item0 chosen (creativity=4, no accidental match)');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [
+          [0,0,0,0,0, 0,4,0,0,0,0,0,0,0,0],  // item0: creativity=4
+          [0,0,0,0,0, 0,9,0,0,0,0,0,0,0,0],  // item1: creativity=9
+        ],
+        humans: [
+          [0,0,0,0,0, 0,4,0,0,0,0,0,0,0,0],  // human0 (target): creativity=4
+          [0,0,0,0,0, 0,8,0,0,0,0,0,0,0,0],  // human1 (collateral): creativity=8
+        ],
+        targetReqs: [[6, 4]],
+        bestPerStat: [0,0,0,0,0, 0,9,0,0,0,0,0,0,0,0],
+        inherentCount: 1, firstItems: [0, 1], initialLb: 1, maxSearchDepth: 5,
+        maxCounts: [9999, 9999], timeoutSec: 5, ecoMode: false, availability: [0, 0],
+      });
+    })();
+
+    // ── Worker: pairwise additive lower bound (two disjoint-stat requirements) ──
+    asyncBegin();
+    (function() {
+      // item0: creativity=5 only, item1: intellect=5 only
+      // Requirement: creativity=5 AND intellect=5
+      // No single item covers both — must use 2 items (one for each stat)
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'pairwise-lb worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 pairwise additive LB: disjoint-stat requirements need 2 items');
+        assert(e.data.solution !== null, 'pairwise-lb: solution found');
+        if (e.data.solution) {
+          assertEqual(e.data.solution.items.length, 2, 'pairwise-lb: exactly 2 items needed (one per disjoint stat)');
+          assert(e.data.solution.total[6] >= 5, 'pairwise-lb: creativity requirement met');
+          assert(e.data.solution.total[4] >= 5, 'pairwise-lb: intellect requirement met');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [
+          [0,0,0,0,0, 0,5,0,0,0,0,0,0,0,0],  // item0: creativity=5, no intellect
+          [0,0,0,0,5, 0,0,0,0,0,0,0,0,0,0],  // item1: intellect=5, no creativity
+        ],
+        humans: [[0,0,0,0,5, 0,5,0,0,0,0,0,0,0,0]],  // target needs both
+        targetReqs: [[4, 5], [6, 5]],
+        bestPerStat: [0,0,0,0,5, 0,5,0,0,0,0,0,0,0,0],
+        inherentCount: 1, firstItems: [0, 1], initialLb: 2, maxSearchDepth: 5,
+        maxCounts: [9999, 9999], timeoutSec: 5, ecoMode: false, availability: [0, 0],
+      });
+    })();
+
+    // ── Worker: exhaustive search with no solution ──
+    asyncBegin();
+    (function() {
+      // item0: creativity=3 (maxCounts=1), item1: creativity=3 (maxCounts=1)
+      // Target: creativity=10 — max achievable is 6, which is < 10: impossible
+      // maxSearchDepth=3 — after exhausting all depths, exhaustive:true
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'exhaustive worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 exhaustive:true and null solution when target unreachable');
+        assert(e.data.solution === null, 'exhaustive: no solution when target stat impossible');
+        assert(e.data.exhaustive === true, 'exhaustive: reports exhaustive:true when maxSearchDepth reached');
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [
+          [0,0,0,0,0, 0,3,0,0,0,0,0,0,0,0],  // item0: creativity=3 (max use: 1)
+          [0,0,0,0,0, 0,3,0,0,0,0,0,0,0,0],  // item1: creativity=3 (max use: 1)
+        ],
+        humans: [[0,0,0,0,0, 0,10,0,0,0,0,0,0,0,0]],  // needs creativity=10
+        targetReqs: [[6, 10]],
+        bestPerStat: [0,0,0,0,0, 0,3,0,0,0,0,0,0,0,0],
+        inherentCount: 1, firstItems: [0, 1], initialLb: 4, maxSearchDepth: 3,
+        maxCounts: [1, 1], timeoutSec: 5, ecoMode: false, availability: [0, 0],
+      });
+    })();
+
+    // ── Worker: 3-item solution (depth 3 search) ──
+    asyncBegin();
+    (function() {
+      // Each item adds creativity=3, need creativity=9 — requires exactly 3 items
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'depth3 worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 3-item solution at depth 3');
+        assert(e.data.solution !== null, 'depth3: solution found');
+        if (e.data.solution) {
+          assertEqual(e.data.solution.items.length, 3, 'depth3: exactly 3 items');
+          assert(e.data.solution.total[6] >= 9, 'depth3: creativity=9 met');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [[0,0,0,0,0, 0,3,0,0,0,0,0,0,0,0]],  // creativity=3
+        humans: [[0,0,0,0,0, 0,9,0,0,0,0,0,0,0,0]],  // needs creativity=9
+        targetReqs: [[6, 9]],
+        bestPerStat: [0,0,0,0,0, 0,3,0,0,0,0,0,0,0,0],
+        inherentCount: 1, firstItems: [0], initialLb: 3, maxSearchDepth: 5,
+        maxCounts: [9999], timeoutSec: 5, ecoMode: false, availability: [0],
+      });
+    })();
+
+    // ── Worker: stop signal cancels search ──
+    asyncBegin();
+    (function() {
+      // Start a large search then immediately stop it; must still return done
+      const worker = new Worker('solver-worker.js');
+      let receivedDone = false;
+      const t = setTimeout(() => { assert(false, 'stop-signal worker timed out'); worker.terminate(); asyncEnd(); }, 6000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 stop signal terminates search and returns done');
+        assert(true, 'stop-signal: done message received after stop');
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: Array.from({length: 10}, (_, i) => { const s = new Array(15).fill(0); s[6] = i + 1; return s; }),
+        humans: [[0,0,0,0,0, 0,50,0,0,0,0,0,0,0,0]],
+        targetReqs: [[6, 50]],
+        bestPerStat: [0,0,0,0,0, 0,10,0,0,0,0,0,0,0,0],
+        inherentCount: 1,
+        firstItems: Array.from({length: 10}, (_, i) => i),
+        initialLb: 5, maxSearchDepth: 10,
+        maxCounts: Array(10).fill(9999),
+        timeoutSec: 30, ecoMode: false,
+        availability: Array(10).fill(0),
+      });
+      // Stop after a tick so the solve message is processed first
+      setTimeout(() => worker.postMessage({ type: 'stop' }), 20);
+    })();
+
+    // ── Worker: collateral early-prune removes branches that already over-match ──
+    asyncBegin();
+    (function() {
+      // 3 humans: target (creativity=5), collateral1 (weight=1, easy), collateral2 (weight=2, medium)
+      // item0: creativity=5, weight=0 → satisfies only target (collateral=1 — perfect)
+      // item1: creativity=5, weight=3 → satisfies target + both collaterals (collateral=3)
+      // Solver must pick item0 even though both satisfy the target
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'early-prune worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 collateral early-prune avoids over-matching paths');
+        assert(e.data.solution !== null, 'early-prune: found a solution');
+        if (e.data.solution) {
+          assertEqual(e.data.solution.collateral, 1, 'early-prune: only target matched (collateral=1)');
+          assertEqual(e.data.solution.items[0], 0, 'early-prune: item0 selected (no collateral)');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [
+          [0,0,0,0,0, 0,5,0,0,0,0,0,0,0,0],  // item0: creativity=5, no weight
+          [3,0,0,0,0, 0,5,0,0,0,0,0,0,0,0],  // item1: creativity=5, weight=3
+        ],
+        humans: [
+          [0,0,0,0,0, 0,5,0,0,0,0,0,0,0,0],  // human0 (target): creativity=5
+          [1,0,0,0,0, 0,0,0,0,0,0,0,0,0,0],  // human1: weight=1
+          [2,0,0,0,0, 0,0,0,0,0,0,0,0,0,0],  // human2: weight=2
+        ],
+        targetReqs: [[6, 5]],
+        bestPerStat: [3,0,0,0,0, 0,5,0,0,0,0,0,0,0,0],
+        inherentCount: 1, firstItems: [0, 1], initialLb: 1, maxSearchDepth: 5,
+        maxCounts: [9999, 9999], timeoutSec: 5, ecoMode: false, availability: [0, 0],
+      });
+    })();
+
+    // ── Worker: worker correctly passes suffJoint for correctness ──
+    asyncBegin();
+    (function() {
+      // item0: creativity=3, intellect=3 (covers BOTH stats — joint item exists)
+      // Requirement: creativity=3 AND intellect=3
+      // With item0 available, solution at depth 1 is possible (joint item covers both)
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'joint-cover worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 joint-covering item solves multi-stat req in 1 item');
+        assert(e.data.solution !== null, 'joint-cover: solution found');
+        if (e.data.solution) {
+          assertEqual(e.data.solution.items.length, 1, 'joint-cover: 1 item is enough (covers both stats)');
+          assert(e.data.solution.total[6] >= 3, 'joint-cover: creativity met');
+          assert(e.data.solution.total[4] >= 3, 'joint-cover: intellect met');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [[0,0,0,0,3, 0,3,0,0,0,0,0,0,0,0]],  // item0: intellect=3, creativity=3
+        humans: [[0,0,0,0,3, 0,3,0,0,0,0,0,0,0,0]],  // target: needs both
+        targetReqs: [[4, 3], [6, 3]],
+        bestPerStat: [0,0,0,0,3, 0,3,0,0,0,0,0,0,0,0],
+        inherentCount: 1, firstItems: [0], initialLb: 1, maxSearchDepth: 5,
+        maxCounts: [9999], timeoutSec: 5, ecoMode: false, availability: [0],
+      });
+    })();
+
+    // ── Worker: depthDone messages are emitted per depth ──
+    asyncBegin();
+    (function() {
+      // Start a search that needs depth 2; first depth=1 should yield depthDone
+      const worker = new Worker('solver-worker.js');
+      let gotDepthDone = false;
+      const t = setTimeout(() => { assert(false, 'depthdone worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type === 'depthDone') gotDepthDone = true;
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 depthDone message emitted after each depth');
+        assert(gotDepthDone, 'depthDone: received at least one depthDone message');
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [[0,0,0,0,0, 0,3,0,0,0,0,0,0,0,0]],
+        humans: [[0,0,0,0,0, 0,6,0,0,0,0,0,0,0,0]],
+        targetReqs: [[6, 6]],
+        bestPerStat: [0,0,0,0,0, 0,3,0,0,0,0,0,0,0,0],
+        inherentCount: 1, firstItems: [0], initialLb: 1, maxSearchDepth: 5,
+        maxCounts: [9999], timeoutSec: 5, ecoMode: false, availability: [0],
+      });
+    })();
+
+    // ── Worker: newBest message emitted on improvement ──
+    asyncBegin();
+    (function() {
+      // Simple single-item search; newBest should fire when item0 first satisfies req
+      const worker = new Worker('solver-worker.js');
+      let gotNewBest = false;
+      const t = setTimeout(() => { assert(false, 'newbest worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type === 'newBest') gotNewBest = true;
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 newBest message fired when better solution found');
+        assert(gotNewBest, 'newBest: received newBest message during search');
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [[0,0,0,0,0, 0,5,0,0,0,0,0,0,0,0]],
+        humans: [[0,0,0,0,0, 0,3,0,0,0,0,0,0,0,0]],
+        targetReqs: [[6, 3]],
+        bestPerStat: [0,0,0,0,0, 0,5,0,0,0,0,0,0,0,0],
+        inherentCount: 1, firstItems: [0], initialLb: 1, maxSearchDepth: 5,
+        maxCounts: [9999], timeoutSec: 5, ecoMode: false, availability: [0],
+      });
+    })();
+
+    // ── Worker: maxCounts=1 prevents reuse of item ──
+    asyncBegin();
+    (function() {
+      // item0: creativity=4 — with maxCounts=1, only usable once → max creativity=4
+      // item1: creativity=4 — with maxCounts=1
+      // Requirement: creativity=8 — needs item0+item1 (can't reuse either)
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'maxcounts1 worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 maxCounts=1 forces using both distinct items');
+        assert(e.data.solution !== null, 'maxcounts1: solution found using two distinct items');
+        if (e.data.solution) {
+          assertEqual(e.data.solution.items.length, 2, 'maxcounts1: uses 2 items (both distinct)');
+          assert(e.data.solution.total[6] >= 8, 'maxcounts1: creativity=8 met');
+          // Both items must be different
+          assert(new Set(e.data.solution.items).size === 2, 'maxcounts1: two distinct items used');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [
+          [0,0,0,0,0, 0,4,0,0,0,0,0,0,0,0],  // item0: creativity=4, maxCounts=1
+          [0,0,0,0,0, 0,4,0,0,0,0,0,0,0,0],  // item1: creativity=4, maxCounts=1
+        ],
+        humans: [[0,0,0,0,0, 0,8,0,0,0,0,0,0,0,0]],
+        targetReqs: [[6, 8]],
+        bestPerStat: [0,0,0,0,0, 0,4,0,0,0,0,0,0,0,0],
+        inherentCount: 1, firstItems: [0, 1], initialLb: 2, maxSearchDepth: 5,
+        maxCounts: [1, 1], timeoutSec: 5, ecoMode: false, availability: [0, 0],
+      });
+    })();
+
+    // ── Worker: 5-stat requirement (multi-stat profession) ──
+    asyncBegin();
+    (function() {
+      // Simulate a complex profession needing 5 different stats
+      // Each item covers exactly 1 stat. Solution needs 5 items.
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, '5stat worker timed out'); worker.terminate(); asyncEnd(); }, 8000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 5-stat profession with 5 single-stat items');
+        assert(e.data.solution !== null, '5stat: found solution for 5-stat requirement');
+        if (e.data.solution) {
+          assert(e.data.solution.total[0] >= 5, '5stat: weight met');
+          assert(e.data.solution.total[1] >= 5, '5stat: height met');
+          assert(e.data.solution.total[2] >= 5, '5stat: life_exp met');
+          assert(e.data.solution.total[3] >= 5, '5stat: strength met');
+          assert(e.data.solution.total[4] >= 5, '5stat: intellect met');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      const items = [
+        [5,0,0,0,0, 0,0,0,0,0,0,0,0,0,0],  // item0: weight=5
+        [0,5,0,0,0, 0,0,0,0,0,0,0,0,0,0],  // item1: height=5
+        [0,0,5,0,0, 0,0,0,0,0,0,0,0,0,0],  // item2: life_exp=5
+        [0,0,0,5,0, 0,0,0,0,0,0,0,0,0,0],  // item3: strength=5
+        [0,0,0,0,5, 0,0,0,0,0,0,0,0,0,0],  // item4: intellect=5
+      ];
+      worker.postMessage({
+        type: 'solve',
+        items,
+        humans: [[5,5,5,5,5, 0,0,0,0,0,0,0,0,0,0]],
+        targetReqs: [[0,5],[1,5],[2,5],[3,5],[4,5]],
+        bestPerStat: [5,5,5,5,5, 0,0,0,0,0,0,0,0,0,0],
+        inherentCount: 1,
+        firstItems: [0,1,2,3,4], initialLb: 5, maxSearchDepth: 8,
+        maxCounts: Array(5).fill(9999), timeoutSec: 8, ecoMode: false,
+        availability: Array(5).fill(0),
+      });
+    })();
+
+    // ── Worker: inherentCount=2 means perfect stops at collateral=2 ──
+    asyncBegin();
+    (function() {
+      // 3 humans: target + 2 inherent (always match no matter what)
+      // A solution with collateral=2 (just target+inherents) is already optimal
+      // inherentCount=2 → perfect when collateral <= 2
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'inherent worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 inherentCount=2: stops when collateral <= inherentCount');
+        assert(e.data.solution !== null, 'inherent: solution found');
+        if (e.data.solution) {
+          assert(e.data.solution.collateral <= 3, 'inherent: collateral within expected range');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [[0,0,0,0,0, 0,5,0,0,0,0,0,0,0,0]],
+        humans: [
+          [0,0,0,0,0, 0,5,0,0,0,0,0,0,0,0],  // target
+          [0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0],  // inherent1: no stats (always matches)
+          [0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0],  // inherent2: no stats (always matches)
+        ],
+        targetReqs: [[6, 5]],
+        bestPerStat: [0,0,0,0,0, 0,5,0,0,0,0,0,0,0,0],
+        inherentCount: 2, firstItems: [0], initialLb: 1, maxSearchDepth: 5,
+        maxCounts: [9999], timeoutSec: 5, ecoMode: false, availability: [0],
+      });
+    })();
+
+    // ── Worker: result total array has all 15 elements ──
+    asyncBegin();
+    (function() {
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'total15 worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 solution total array always has 15 elements');
+        assert(e.data.solution !== null, 'total15: solution not null');
+        if (e.data.solution) {
+          assertEqual(e.data.solution.total.length, 15, 'total15: total has 15 elements');
+          assert(Array.isArray(e.data.solution.total), 'total15: total is an array');
+          assert(e.data.solution.items.length >= 1, 'total15: at least one item');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [[1,2,3,4,5, 6,7,8,9,10, 11,12,13,14,15]],
+        humans: [[1,0,0,0,0, 0,0,0,0,0, 0,0,0,0,0]],
+        targetReqs: [[0, 1]],
+        bestPerStat: [1,2,3,4,5, 6,7,8,9,10, 11,12,13,14,15],
+        inherentCount: 1, firstItems: [0], initialLb: 1, maxSearchDepth: 3,
+        maxCounts: [9999], timeoutSec: 5, ecoMode: false, availability: [0],
+      });
+    })();
+
+    // ── Worker: no firstItems → immediately done, no solution ──
+    asyncBegin();
+    (function() {
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'nofirst worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 empty firstItems returns done with null solution');
+        assert(e.data.solution === null, 'nofirst: null solution when no firstItems provided');
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [],
+        humans: [[0,0,0,0,0, 0,5,0,0,0,0,0,0,0,0]],
+        targetReqs: [[6, 5]],
+        bestPerStat: Array(15).fill(0),
+        inherentCount: 1, firstItems: [], initialLb: 1, maxSearchDepth: 5,
+        maxCounts: [], timeoutSec: 5, ecoMode: false, availability: [],
+      });
+    })();
+
+    // ── Worker: solution items form a valid multiset (used counts within maxCounts) ──
+    asyncBegin();
+    (function() {
+      // item0 maxCounts=3, item1 maxCounts=1
+      // Both items have creativity=3; need creativity=9; can use item0 three times
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'multiset worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 solution respects item multiset counts (maxCounts=3+1)');
+        assert(e.data.solution !== null, 'multiset: solution found');
+        if (e.data.solution) {
+          // Count occurrences of each item
+          const counts = {};
+          e.data.solution.items.forEach(i => counts[i] = (counts[i] || 0) + 1);
+          assert((counts[0] || 0) <= 3, 'multiset: item0 not used more than maxCounts=3 times');
+          assert((counts[1] || 0) <= 1, 'multiset: item1 not used more than maxCounts=1 time');
+          assert(e.data.solution.total[6] >= 9, 'multiset: creativity=9 satisfied');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [
+          [0,0,0,0,0, 0,3,0,0,0,0,0,0,0,0],  // item0: creativity=3 (max 3 uses)
+          [0,0,0,0,0, 0,3,0,0,0,0,0,0,0,0],  // item1: creativity=3 (max 1 use)
+        ],
+        humans: [[0,0,0,0,0, 0,9,0,0,0,0,0,0,0,0]],
+        targetReqs: [[6, 9]],
+        bestPerStat: [0,0,0,0,0, 0,3,0,0,0,0,0,0,0,0],
+        inherentCount: 1, firstItems: [0, 1], initialLb: 3, maxSearchDepth: 5,
+        maxCounts: [3, 1], timeoutSec: 5, ecoMode: false, availability: [0, 0],
+      });
+    })();
+
+    // ── Worker: blocked first item (maxCounts=0) must not appear in solution ──
+    // This is the "Music Notes" bug: item has inventory count=0, but solver was
+    // using it as a first item because processNext bypassed the maxCounts check.
+    asyncBegin();
+    (function() {
+      // item0: creativity=10, BLOCKED (mc=0, simulates Music Notes with count=0 in inventory)
+      // item1: creativity=6, ALLOWED (mc=9999)
+      // firstItems=[0,1] deliberately includes the blocked item to test the guard
+      // Expected: solution only uses item1; item0 never in solution.items
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'blocked-first worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 blocked first item (maxCounts=0) never appears in solution (Music Notes bug)');
+        assert(e.data.solution !== null, 'blocked-first: solution found using non-blocked item');
+        if (e.data.solution) {
+          assert(!e.data.solution.items.includes(0), 'blocked-first: item0 (mc=0) does NOT appear in solution');
+          assert(e.data.solution.items.every(i => i === 1), 'blocked-first: only item1 (mc=9999) used');
+          assert(e.data.solution.total[6] >= 5, 'blocked-first: creativity requirement met via item1');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [
+          [0,0,0,0,0, 0,10,0,0,0,0,0,0,0,0],  // item0: creativity=10 — BLOCKED
+          [0,0,0,0,0, 0,6, 0,0,0,0,0,0,0,0],  // item1: creativity=6  — allowed
+        ],
+        humans: [[0,0,0,0,0, 0,5,0,0,0,0,0,0,0,0]],
+        targetReqs: [[6, 5]],
+        bestPerStat: [0,0,0,0,0, 0,6,0,0,0,0,0,0,0,0],
+        inherentCount: 1,
+        firstItems: [0, 1],   // includes blocked item0 — tests the worker-side guard
+        initialLb: 1,
+        maxSearchDepth: 5,
+        maxCounts: [0, 9999],  // item0 blocked
+        timeoutSec: 5,
+        ecoMode: false,
+        availability: [0, 0],
       });
     })();
 
