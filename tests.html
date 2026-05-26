@@ -247,6 +247,29 @@
       assertEqual(s[14], 11, 'wisdom mapped');
     })();
 
+    section('PECO Athletics memories');
+    (function() {
+      const csv = 'Memory;Adaptability;Communication;Creativity;Discipline;Empathy;Focus;Intellect;Leadership;Logic;Patience;Wisdom;WorldCount\n'
+        + 'PECO Athletics - 100m Dash;20;;25;;;25;;;;20;;30\n'
+        + 'PECO Athletics - Javelin;20;;25;;;25;;;;20;;30\n'
+        + 'PECO Athletics - Triple Jump;20;;25;;;25;;;;20;;30\n';
+      const parsed = parseCSV(csv);
+      assertEqual(parsed.rows.length, 3, 'all 3 PECO memories parsed');
+      parsed.rows.forEach((row) => {
+        const s = memoryStats(row);
+        assertEqual(s[5], 20, row['Memory'] + ' adaptability mapped');
+        assertEqual(s[6], 25, row['Memory'] + ' creativity mapped');
+        assertEqual(s[10], 25, row['Memory'] + ' focus mapped');
+        assertEqual(s[13], 20, row['Memory'] + ' patience mapped');
+        assertEqual(row['WorldCount'], '30', row['Memory'] + ' world count preserved');
+      });
+      assertEqual(
+        getItemImageUrl('PECO Athletics - 100m Dash'),
+        'https://thelastcaretaker.wiki.gg/images/PECO_Athletics_-_100m_Dash.png?format=original',
+        '100m Dash image URL matches wiki naming'
+      );
+    })();
+
     section('humanStats mapping');
     (function() {
       const row = { Weight: '10', Height: '20', 'Life Exp.': '30', Strength: '40',
