@@ -21,6 +21,8 @@ const CATEGORY_CLASS = {
   'Explorer':'cat-explorer',
 };
 
+const REPO_COMMITS_API = 'https://api.github.com/repos/Root-DE/LastCaretaker/commits?per_page=1';
+
 // ─── State ───────────────────────────────────────────────────────────────────
 let humans = [];   // [{profession, category, stats:[15]}]
 let foods  = [];   // [{name, stats:[15]}]
@@ -870,6 +872,45 @@ function showToast(msg) {
   el._timer = setTimeout(() => { el.style.opacity = '0'; }, 2200);
 }
 
+async function loadFooterVersion() {
+  const el = document.getElementById('footer-version');
+  if (!el) return;
+
+  try {
+    const res = await fetch(REPO_COMMITS_API, {
+      headers: { Accept: 'application/vnd.github+json' },
+      cache: 'no-store',
+    });
+    if (!res.ok) throw new Error(`GitHub API ${res.status}`);
+
+    const commits = await res.json();
+    const latest = Array.isArray(commits) ? commits[0] : null;
+    if (!latest || !latest.sha || !latest.commit || !latest.commit.committer) {
+      throw new Error('Missing commit metadata');
+    }
+
+    const shortSha = latest.sha.slice(0, 7);
+    const committedAt = latest.commit.committer.date;
+    const dateText = new Date(committedAt).toISOString().slice(0, 10);
+    const label = `Version ${dateText}.${shortSha}`;
+
+    el.textContent = '';
+    const link = document.createElement('a');
+    link.href = latest.html_url || 'https://github.com/Root-DE/LastCaretaker';
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.textContent = label;
+    link.title = latest.commit.message || label;
+    el.appendChild(link);
+  } catch (err) {
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      el.textContent = 'Local preview';
+    } else {
+      el.textContent = 'Version unavailable';
+    }
+  }
+}
+
 // ─── Solver Management ───────────────────────────────────────────────────────
 function buildItems() {
   items = [];
@@ -1658,11 +1699,7 @@ async function init() {
     loadInventory(true);
   }
 
-  // Load version
-  fetch('version.json').then(r => r.json()).then(v => {
-    const el = document.getElementById('footer-version');
-    if (el && v.build) el.textContent = `build ${v.build}`;
-  }).catch(() => {});
+  loadFooterVersion();
 }
 
 document.addEventListener('DOMContentLoaded', init);

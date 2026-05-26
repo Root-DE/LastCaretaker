@@ -1,6 +1,6 @@
 # The Last Caretaker — Human Growth Calculator
 
-A static website that finds the most targeted food & memory recipe for any profession in [The Last Caretaker](https://store.steampowered.com/app/2722000/The_Last_Caretaker/).
+A static website that finds the most targeted food & memory recipe for any profession in [The Last Caretaker](https://store.steampowered.com/app/1783560/The_Last_Caretaker/).
 
 The solver minimises **collateral profession matches** — not just item count — so you grow exactly the profession you want with minimal side effects.
 
