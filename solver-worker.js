@@ -22,7 +22,7 @@ self.onmessage = function (e) {
 };
 
 // Count how many professions a stat total satisfies
-// humanSparse: Int32Array of [statIdx, value, ...] pairs, humanOffsets: Int32Array[nHumans+1]
+// humanSparse: Float64Array of [statIdx, value, ...] pairs, humanOffsets: Int32Array[nHumans+1]
 function countValid(total, humanSparse, humanOffsets, nHumans) {
   let count = 0;
   for (let h = 0; h < nHumans; h++) {
@@ -55,7 +55,7 @@ function computeResourceCost(chosen, chosenLen, avail) {
 // suffMax: Float64Array[nItems*nReqs] — suffMax[i*nReqs+r] = max single-item value for req r among items[i..end]
 // suffJoint: Uint8Array[nItems*nReqs*nReqs] — suffJoint[i*nReqs*nReqs+r1*nReqs+r2] = 1 if any item j>=i covers both req r1 and r2
 function dfs(itemFlat, nItems, chosen, total, reqs, nReqs, maxD, d, minI,
-             bps, humanSparse, humanOffsets, nHumans, state, maxCounts, used, suffMax, suffJoint, itemReqMask) {
+             bps, humanSparse, humanOffsets, nHumans, state, maxCounts, used, suffMax, suffJoint, itemReqMask, parentDeficitMask) {
   state.nodes++;
 
   // Periodic checks (every ~131K nodes via bitmask)
@@ -151,26 +151,28 @@ function dfs(itemFlat, nItems, chosen, total, reqs, nReqs, maxD, d, minI,
 
   if (d >= maxD || state.perfect || shouldStop) return;
 
-  // Compute deficit bitmask: bit r is set if requirement r is still unsatisfied
-  let deficitMask = 0;
-  for (let r = 0; r < nReqs; r++) {
-    if (total[reqs[r * 2]] < reqs[r * 2 + 1]) deficitMask |= (1 << r);
-  }
-
   for (let i = minI; i < nItems; i++) {
     if (state.perfect || shouldStop) return;
     if (used[i] >= maxCounts[i]) continue;
 
     // Skip items that don't help with any remaining deficit (bitmask check)
-    if ((itemReqMask[i] & deficitMask) === 0) continue;
+    if ((itemReqMask[i] & parentDeficitMask) === 0) continue;
 
     const base = i * 15;
     chosen[d] = i;
     used[i]++;
     for (let s = 0; s < 15; s++) total[s] += itemFlat[base + s];
 
+    // Compute child deficit mask: only check bits that were unsatisfied
+    let childMask = 0;
+    for (let r = 0; r < nReqs; r++) {
+      if ((parentDeficitMask & (1 << r)) && total[reqs[r * 2]] < reqs[r * 2 + 1]) {
+        childMask |= (1 << r);
+      }
+    }
+
     dfs(itemFlat, nItems, chosen, total, reqs, nReqs, maxD, d + 1, i,
-        bps, humanSparse, humanOffsets, nHumans, state, maxCounts, used, suffMax, suffJoint, itemReqMask);
+        bps, humanSparse, humanOffsets, nHumans, state, maxCounts, used, suffMax, suffJoint, itemReqMask, childMask);
 
     for (let s = 0; s < 15; s++) total[s] -= itemFlat[base + s];
     used[i]--;
@@ -206,7 +208,7 @@ function solve(data) {
   for (let h = 0; h < nHumans; h++)
     for (let s = 0; s < 15; s++)
       if (humanFlat[h * 15 + s] > 0) sparseLen++;
-  const humanSparse = new Int32Array(sparseLen * 2);
+  const humanSparse = new Float64Array(sparseLen * 2);
   const humanOffsets = new Int32Array(nHumans + 1);
   let sparseIdx = 0;
   for (let h = 0; h < nHumans; h++) {
@@ -292,6 +294,10 @@ function solve(data) {
 
   function processNext() {
     const tickDeadline = performance.now() + 50;
+    let chosen = new Int32Array(curDepth);
+    const total = new Float64Array(15);
+    const used = new Int32Array(nItems);
+    let lastDepth = curDepth;
 
     while (true) {
       if (shouldStop || state.perfect) {
@@ -333,15 +339,17 @@ function solve(data) {
           self.postMessage({ type: 'done', solution: state.bestSol, nodes: state.nodes, exhaustive: true });
           return;
         }
+        if (curDepth !== lastDepth) {
+          chosen = new Int32Array(curDepth);
+          lastDepth = curDepth;
+        }
       }
 
       const first = firstItems[fi];
       if (mc[first] === 0) { fi++; continue; }
 
-      const chosen = new Int32Array(curDepth);
+      total.fill(0);
       chosen[0] = first;
-      const total = new Float64Array(15);
-      const used = new Int32Array(nItems);
       for (let s = 0; s < 15; s++) total[s] = itemFlat[first * 15 + s];
       used[first] = 1;
 
@@ -364,10 +372,15 @@ function solve(data) {
       }
 
       if (curDepth > 1 && !state.perfect && !shouldStop) {
+        let initMask = 0;
+        for (let r = 0; r < nReqs; r++) {
+          if (total[reqs[r * 2]] < reqs[r * 2 + 1]) initMask |= (1 << r);
+        }
         dfs(itemFlat, nItems, chosen, total, reqs, nReqs, curDepth, 1, first,
-            bps, humanSparse, humanOffsets, nHumans, state, mc, used, suffMax, suffJoint, itemReqMask);
+            bps, humanSparse, humanOffsets, nHumans, state, mc, used, suffMax, suffJoint, itemReqMask, initMask);
       }
 
+      used[first] = 0;
       fi++;
 
       if (performance.now() > tickDeadline) {
