@@ -273,7 +273,7 @@
     section('Porcine Vocal Interface memory');
     (function() {
       const csv = 'Memory;Adaptability;Communication;Creativity;Discipline;Empathy;Focus;Intellect;Leadership;Logic;Patience;Wisdom;WorldCount\n'
-        + 'Porcine Vocal Interface;;100;50;;50;;;;;;;\n';
+        + 'Porcine Vocal Interface;;100;50;;50;;;;;;;10\n';
       const parsed = parseCSV(csv);
       assertEqual(parsed.rows.length, 1, 'Porcine Vocal Interface parsed');
       const row = parsed.rows[0];
@@ -283,6 +283,7 @@
       assertEqual(s[9], 50, 'empathy mapped');
       assertEqual(s[5], 0, 'adaptability remains zero');
       assertEqual(s[10], 0, 'focus remains zero');
+      assertEqual(row['WorldCount'], '10', 'Porcine Vocal Interface world count preserved');
       assertEqual(
         getItemImageUrl('Porcine Vocal Interface'),
         'https://thelastcaretaker.wiki.gg/images/Porcine_Vocal_Interface.png?format=original',
@@ -484,6 +485,26 @@
     }
     function asyncBegin() { asyncPending++; }
     function asyncEnd() { asyncPending--; if (asyncPending <= 0) showSummary(); }
+
+    asyncBegin();
+    (function() {
+      fetch('data/memories.csv')
+        .then(r => r.text())
+        .then(text => {
+          section('Memory dataset \u2014 every memory has WorldCount > 0');
+          const parsed = parseCSV(text);
+          assert(parsed.rows.length > 0, 'memories.csv loaded');
+          parsed.rows.forEach((row) => {
+            const worldCount = parseInt(row['WorldCount'], 10);
+            assert(worldCount > 0, row['Memory'] + ' has WorldCount > 0');
+          });
+        })
+        .catch(err => {
+          section('Memory dataset \u2014 every memory has WorldCount > 0');
+          assert(false, 'failed to load memories.csv: ' + err.message);
+        })
+        .finally(() => asyncEnd());
+    })();
 
     asyncBegin();
     (function() {
