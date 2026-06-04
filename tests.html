@@ -270,6 +270,26 @@
       );
     })();
 
+    section('Porcine Vocal Interface memory');
+    (function() {
+      const csv = 'Memory;Adaptability;Communication;Creativity;Discipline;Empathy;Focus;Intellect;Leadership;Logic;Patience;Wisdom;WorldCount\n'
+        + 'Porcine Vocal Interface;;100;50;;50;;;;;;;\n';
+      const parsed = parseCSV(csv);
+      assertEqual(parsed.rows.length, 1, 'Porcine Vocal Interface parsed');
+      const row = parsed.rows[0];
+      const s = memoryStats(row);
+      assertEqual(s[7], 100, 'communication mapped');
+      assertEqual(s[6], 50, 'creativity mapped');
+      assertEqual(s[9], 50, 'empathy mapped');
+      assertEqual(s[5], 0, 'adaptability remains zero');
+      assertEqual(s[10], 0, 'focus remains zero');
+      assertEqual(
+        getItemImageUrl('Porcine Vocal Interface'),
+        'https://thelastcaretaker.wiki.gg/images/Porcine_Vocal_Interface.png?format=original',
+        'Porcine Vocal Interface image URL matches wiki naming'
+      );
+    })();
+
     section('humanStats mapping');
     (function() {
       const row = { Weight: '10', Height: '20', 'Life Exp.': '30', Strength: '40',
