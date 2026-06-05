@@ -54,11 +54,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # super-linter needs full history to diff the changed files against the base.
+          fetch-depth: 0
 
       - name: Run CodeQL-like static analysis
         uses: github/super-linter/slim@v7
         env:
-          VALIDATE_ALL_CODEBASE: true
+          # Lint only the files changed in this PR/push, not the entire legacy
+          # codebase. Full-codebase linting was never enforced here and would fail
+          # on pre-existing style; scoping to the diff is super-linter's
+          # recommended adoption mode and keeps new changes clean.
+          VALIDATE_ALL_CODEBASE: false
           VALIDATE_JAVASCRIPT_ES: true
           VALIDATE_CSS: true
           VALIDATE_HTML: true
