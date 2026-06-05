@@ -1,10 +1,19 @@
 name: CI — Tests & Security
 
+# Runs the full test suite (plus lint/security) on every pull request and on
+# every push to the deploy branch. GitHub Pages serves from `master`, so gating
+# merges on this workflow (via branch protection → required status check) ensures
+# all tests pass before anything is deployed.
 on:
   pull_request:
-    branches: [main]
+    branches: [master]
   push:
-    branches: [main]
+    branches: [master]
+
+# Only the latest run per ref matters as the gate; cancel superseded runs.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -53,7 +62,7 @@ jobs:
           VALIDATE_JAVASCRIPT_ES: true
           VALIDATE_CSS: true
           VALIDATE_HTML: true
-          DEFAULT_BRANCH: main
+          DEFAULT_BRANCH: master
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LOG_LEVEL: WARN
 
