@@ -21,6 +21,14 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Build & verify WASM kernel matches source
+        run: |
+          npm ci
+          npm run build:wasm
+          # Fail if the committed solver-kernel.wasm drifted from wasm/solver-kernel.wat.
+          git diff --exit-code -- solver-kernel.wasm \
+            || (echo "::error::solver-kernel.wasm is out of date. Run 'npm run build:wasm' and commit the result." && exit 1)
+
       - name: Install Playwright
         run: npx playwright install chromium --with-deps
 

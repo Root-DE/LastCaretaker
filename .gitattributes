@@ -1,0 +1,4 @@
+# Treat the compiled WebAssembly kernel as binary so git never applies
+# line-ending normalization (which would corrupt it and break the CI
+# `git diff --exit-code` verification against wasm/solver-kernel.wat).
+*.wasm binary

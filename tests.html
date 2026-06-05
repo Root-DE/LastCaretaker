@@ -609,6 +609,43 @@
 
     asyncBegin();
     (function() {
+      // A greedy seed starting from item0 can build a 2-item solution,
+      // but the exact search must still return the 1-item optimum from item1.
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'seed-optimal worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver — greedy seed does not block shorter exact optimum');
+        assert(e.data.solution !== null, 'seed-optimal: worker found a solution');
+        if (e.data.solution) {
+          assertEqual(e.data.solution.items.length, 1, 'seed-optimal: final answer keeps the 1-item optimum');
+          assertEqual(e.data.solution.items[0], 1, 'seed-optimal: chooses the direct item, not the seeded 2-item path');
+          assert(e.data.solution.total[4] >= 5, 'seed-optimal: intellect requirement met');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [
+          [0,0,0,0,3, 0,0,0,0,0,0,0,0,0,0],
+          [0,0,0,0,5, 0,0,0,0,0,0,0,0,0,0],
+        ],
+        humans: [[0,0,0,0,5, 0,0,0,0,0,0,0,0,0,0]],
+        targetReqs: [[4, 5]],
+        bestPerStat: [0,0,0,0,5, 0,0,0,0,0,0,0,0,0,0],
+        inherentCount: 1,
+        firstItems: [0, 1],
+        initialLb: 1,
+        maxSearchDepth: 5,
+        maxCounts: [9999, 9999],
+        timeoutSec: 5,
+      });
+    })();
+
+    asyncBegin();
+    (function() {
       const worker = new Worker('solver-worker.js');
       const t = setTimeout(() => { assert(false, 'stop-early worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
       worker.onmessage = function(e) {
@@ -1459,7 +1496,10 @@
     // ── Worker: depthDone messages are emitted per depth ──
     asyncBegin();
     (function() {
-      // Start a search that needs depth 2; first depth=1 should yield depthDone
+      // Integrality-gap instance: item0 supplies only creativity, item1 only
+      // intellect, and the target needs BOTH. The LP lower bound stays 1 (each
+      // stat is coverable by one item), so the search starts at depth 1, finds
+      // no single-item solution, emits depthDone, then solves at depth 2.
       const worker = new Worker('solver-worker.js');
       let gotDepthDone = false;
       const t = setTimeout(() => { assert(false, 'depthdone worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
@@ -1474,12 +1514,15 @@
       };
       worker.postMessage({
         type: 'solve',
-        items: [[0,0,0,0,0, 0,3,0,0,0,0,0,0,0,0]],
-        humans: [[0,0,0,0,0, 0,6,0,0,0,0,0,0,0,0]],
-        targetReqs: [[6, 6]],
-        bestPerStat: [0,0,0,0,0, 0,3,0,0,0,0,0,0,0,0],
-        inherentCount: 1, firstItems: [0], initialLb: 1, maxSearchDepth: 5,
-        maxCounts: [9999], timeoutSec: 5, ecoMode: false, availability: [0],
+        items: [
+          [0,0,0,0,0, 0,2,0,0,0,0,0,0,0,0],  // item0: creativity=2 only
+          [0,0,0,0,2, 0,0,0,0,0,0,0,0,0,0],  // item1: intellect=2 only
+        ],
+        humans: [[0,0,0,0,1, 0,1,0,0,0,0,0,0,0,0]],  // needs creativity>=1 AND intellect>=1
+        targetReqs: [[6, 1], [4, 1]],
+        bestPerStat: [0,0,0,0,2, 0,2,0,0,0,0,0,0,0,0],
+        inherentCount: 1, firstItems: [0, 1], initialLb: 1, maxSearchDepth: 5,
+        maxCounts: [9999, 9999], timeoutSec: 5, ecoMode: false, availability: [0, 0],
       });
     })();
 
@@ -1756,8 +1799,435 @@
       });
     })();
 
+    // ── Worker: LP lower bound keeps the exact optimum on an integrality gap ──
+    asyncBegin();
+    (function() {
+      // item0 supplies only intellect, item1 only creativity; target needs both.
+      // The LP lower bound is 1 (each stat coverable by one item) but the integer
+      // optimum needs 2 items. The solver must still return the correct 2-item
+      // answer — i.e. the strengthened bound must never skip valid depths.
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'lp-gap worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 LP lower bound preserves exact optimum (integrality gap)');
+        assert(e.data.solution !== null, 'lp-gap: found a solution');
+        if (e.data.solution) {
+          assertEqual(e.data.solution.items.length, 2, 'lp-gap: returns the 2-item optimum despite LP bound = 1');
+          assert(e.data.solution.total[4] >= 1, 'lp-gap: intellect requirement met');
+          assert(e.data.solution.total[6] >= 1, 'lp-gap: creativity requirement met');
+          assertEqual(e.data.solution.collateral, 1, 'lp-gap: collateral is inherent-only');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [
+          [0,0,0,0,2, 0,0,0,0,0,0,0,0,0,0],  // item0: intellect=2 only
+          [0,0,0,0,0, 0,2,0,0,0,0,0,0,0,0],  // item1: creativity=2 only
+        ],
+        humans: [[0,0,0,0,1, 0,1,0,0,0,0,0,0,0,0]],
+        targetReqs: [[4, 1], [6, 1]],
+        bestPerStat: [0,0,0,0,2, 0,2,0,0,0,0,0,0,0,0],
+        inherentCount: 1, firstItems: [0, 1], initialLb: 1, maxSearchDepth: 5,
+        maxCounts: [9999, 9999], timeoutSec: 5, ecoMode: false, availability: [0, 0],
+      });
+    })();
+
+    // ── Worker: LP bound exceeding the depth cap reports null + exhaustive ──
+    asyncBegin();
+    (function() {
+      // Two single-stat items, target needs 10 of each but the depth cap is 3.
+      // The LP bound is 10 (>3), so no solution can fit: report null/exhaustive.
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'lp-cap worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 LP bound above depth cap returns null + exhaustive');
+        assert(e.data.solution === null, 'lp-cap: no solution within the item cap');
+        assert(e.data.exhaustive === true, 'lp-cap: reports exhaustive=true');
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [
+          [0,0,0,0,2, 0,0,0,0,0,0,0,0,0,0],  // item0: intellect=2 only
+          [0,0,0,0,0, 0,2,0,0,0,0,0,0,0,0],  // item1: creativity=2 only
+        ],
+        humans: [[0,0,0,0,10, 0,10,0,0,0,0,0,0,0,0]],
+        targetReqs: [[4, 10], [6, 10]],
+        bestPerStat: [0,0,0,0,2, 0,2,0,0,0,0,0,0,0,0],
+        inherentCount: 1, firstItems: [0, 1], initialLb: 1, maxSearchDepth: 3,
+        maxCounts: [9999, 9999], timeoutSec: 5, ecoMode: false, availability: [0, 0],
+      });
+    })();
+
+    // ── Worker: lower-collateral solution preferred over fewer-item solution ──
+    asyncBegin();
+    (function() {
+      // A 1-item solution (item0) satisfies the target but its side-effect stat
+      // unlocks a second profession (collateral=2). A 2-item solution (2x item1)
+      // satisfies the target with no side effect (collateral=1). The solver must
+      // prefer the lower-collateral solution even though it uses more items.
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'collateral-pref worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 prefers lower collateral over fewer items');
+        assert(e.data.solution !== null, 'collateral-pref: found a solution');
+        if (e.data.solution) {
+          assertEqual(e.data.solution.collateral, 1, 'collateral-pref: reaches inherent-only collateral');
+          assert(e.data.solution.items.every(i => i === 1), 'collateral-pref: uses only the side-effect-free item');
+          assertEqual(e.data.solution.total[6], 0, 'collateral-pref: no creativity side effect in total');
+          assert(e.data.solution.total[4] >= 10, 'collateral-pref: intellect requirement met');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [
+          [0,0,0,0,10, 0,10,0,0,0,0,0,0,0,0],  // item0: intellect=10 + creativity=10 (side effect)
+          [0,0,0,0,5,  0,0, 0,0,0,0,0,0,0,0],  // item1: intellect=5 only
+        ],
+        humans: [
+          [0,0,0,0,10, 0,0, 0,0,0,0,0,0,0,0],  // target: intellect>=10
+          [0,0,0,0,0,  0,10,0,0,0,0,0,0,0,0],  // collateral: creativity>=10
+        ],
+        targetReqs: [[4, 10]],
+        bestPerStat: [0,0,0,0,10, 0,10,0,0,0,0,0,0,0,0],
+        inherentCount: 1, firstItems: [0, 1], initialLb: 1, maxSearchDepth: 6,
+        maxCounts: [9999, 9999], timeoutSec: 5, ecoMode: false, availability: [0, 0],
+      });
+    })();
+
+    asyncBegin();
+    (function() {
+      // Two single-item options reach the SAME collateral and item count, but one
+      // overshoots the target and one fits it exactly. The solver must prefer the
+      // zero-overshoot build (the user's "zero overshoot" goal). inherentCount is 0
+      // here so the collateral perfect-stop does not short-circuit before the
+      // overshoot tie-break is exercised.
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'overshoot worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 prefers zero overshoot on collateral/size tie');
+        assert(e.data.solution !== null, 'overshoot: found a solution');
+        if (e.data.solution) {
+          assert(e.data.solution.overshoot != null, 'overshoot: overshoot field is present');
+          assertEqual(e.data.solution.items.length, 1, 'overshoot: uses 1 item');
+          assertEqual(e.data.solution.items[0], 1, 'overshoot: chooses the exact-fit item, not the overshooting one');
+          assertEqual(e.data.solution.overshoot, 0, 'overshoot: reports zero overshoot');
+          assertEqual(e.data.solution.total[4], 5, 'overshoot: total matches the requirement exactly');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [
+          [0,0,0,0,10, 0,0,0,0,0,0,0,0,0,0],  // item0: intellect=10 (overshoot 5)
+          [0,0,0,0,5,  0,0,0,0,0,0,0,0,0,0],  // item1: intellect=5  (exact fit, overshoot 0)
+        ],
+        humans: [[0,0,0,0,5, 0,0,0,0,0,0,0,0,0,0]],  // needs intellect>=5
+        targetReqs: [[4, 5]],
+        bestPerStat: [0,0,0,0,10, 0,0,0,0,0,0,0,0,0,0],
+        inherentCount: 0, firstItems: [0, 1], initialLb: 1, maxSearchDepth: 5,
+        maxCounts: [9999, 9999], timeoutSec: 5, ecoMode: false, availability: [0, 0],
+      });
+    })();
+
+    // ──────────────────────────────────────────────────────────────────────
+    // Additional coverage (10 new cases) — resource caps, overshoot, invariants
+    // ──────────────────────────────────────────────────────────────────────
+
+    // Mirrors of pure app/worker logic, inlined for synchronous testing.
+    function getResourceLimitFor(kind, unlimited, invValue, worldCount) {
+      // app.js getResourceLimits(): food is craftable (truly unlimited); memories
+      // are finite and capped at their world maximum, falling back to unlimited
+      // only when no world count is recorded.
+      if (kind === 'food') return unlimited ? 9999 : invValue;
+      return unlimited ? (worldCount || 9999) : invValue;
+    }
+    function computeOvershootRef(total, reqVec) {
+      let over = 0;
+      for (let s = 0; s < 15; s++) { const ex = total[s] - reqVec[s]; if (ex > 0) over += ex; }
+      return over;
+    }
+    function clampMaxCountsRef(itemStats, targetReqs, maxCounts) {
+      const out = maxCounts.slice();
+      for (let i = 0; i < itemStats.length; i++) {
+        let maxUseful = 0;
+        for (const [si, val] of targetReqs) {
+          if (itemStats[i][si] > 0) maxUseful = Math.max(maxUseful, Math.ceil(val / itemStats[i][si]));
+        }
+        if (maxUseful > 0) out[i] = Math.min(out[i], maxUseful);
+      }
+      return out;
+    }
+    function toReqVec(targetReqs) {
+      const v = new Array(15).fill(0);
+      for (const [si, val] of targetReqs) v[si] = val;
+      return v;
+    }
+
+    // ── Test 1 (pure): unlimited mode caps memories at world max, food unlimited ──
+    section('Resource limits \u2014 unlimited caps memories at world max, food stays unlimited');
+    assertEqual(getResourceLimitFor('food', true, 5, 12), 9999, 'unlimited food is truly unlimited (9999)');
+    assertEqual(getResourceLimitFor('memory', true, 5, 30), 30, 'unlimited memory capped at world max (30)');
+    assertEqual(getResourceLimitFor('memory', true, 5, 0), 9999, 'unlimited memory with no world count falls back to unlimited');
+    assertEqual(getResourceLimitFor('food', false, 7, 12), 7, 'limited food uses inventory value');
+    assertEqual(getResourceLimitFor('memory', false, 4, 30), 4, 'limited memory uses inventory value');
+
+    // ── Test 2 (pure): computeOvershoot sums per-stat excess, never negative ──
+    section('computeOvershoot \u2014 sums per-stat excess, exact fit is zero');
+    assertEqual(computeOvershootRef([0,0,0,0,8, 0,3,0,0,0,0,0,0,0,0], toReqVec([[4,5],[6,1]])), 5, 'overshoot sums excess across stats (3 + 2)');
+    assertEqual(computeOvershootRef([0,0,0,0,5, 0,0,0,0,0,0,0,0,0,0], toReqVec([[4,5]])), 0, 'exact fit yields zero overshoot');
+    assertEqual(computeOvershootRef([0,0,0,0,3, 0,0,0,0,0,0,0,0,0,0], toReqVec([[4,5]])), 0, 'deficit does not produce negative overshoot');
+
+    // ── Test 3 (pure): maxUseful clamp limits repetitions to what is useful ──
+    section('maxUseful clamp \u2014 caps item repetitions at ceil(req/stat)');
+    {
+      const clamped = clampMaxCountsRef(
+        [[0,0,0,0,3, 0,0,0,0,0,0,0,0,0,0], [0,0,0,0,0, 0,10,0,0,0,0,0,0,0,0]],
+        [[4, 10]], [9999, 9999]);
+      assertEqual(clamped[0], 4, 'item supplying the required stat clamps to ceil(10/3)=4');
+      assertEqual(clamped[1], 9999, 'item not supplying a required stat is left unclamped');
+      // Cap of 3 is tighter than maxUseful=ceil(10/2)=5, so the cap is preserved.
+      const clamped2 = clampMaxCountsRef([[0,0,0,0,2, 0,0,0,0,0,0,0,0,0,0]], [[4, 10]], [3]);
+      assertEqual(clamped2[0], 3, 'existing tighter cap is preserved over a looser maxUseful');
+    }
+
+    // ── Test 4 (worker): overshoot value sums across multiple overshooting stats ──
+    asyncBegin();
+    (function() {
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'multi-overshoot worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 overshoot sums across multiple stats');
+        assert(e.data.solution !== null, 'multi-overshoot: found a solution');
+        if (e.data.solution) {
+          // Only one item exists; it provides intellect=8 (req 5 -> +3) and creativity=4 (req 1 -> +3) => 6.
+          assertEqual(e.data.solution.overshoot, 6, 'multi-overshoot: overshoot equals summed excess (3+3)');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [[0,0,0,0,8, 0,4,0,0,0,0,0,0,0,0]],
+        humans: [[0,0,0,0,5, 0,1,0,0,0,0,0,0,0,0]],
+        targetReqs: [[4, 5], [6, 1]],
+        bestPerStat: [0,0,0,0,8, 0,4,0,0,0,0,0,0,0,0],
+        inherentCount: 1, firstItems: [0], initialLb: 1, maxSearchDepth: 4,
+        maxCounts: [9999], timeoutSec: 5, ecoMode: false, availability: [0],
+      });
+    })();
+
+    // ── Test 5 (worker): many narrow items reach an exact (zero-overshoot) total ──
+    asyncBegin();
+    (function() {
+      // item0 overshoots (intellect 10 vs req 6). 3x item1 (intellect 2) hits 6 exactly.
+      // inherentCount 0 disables the collateral perfect-stop so the overshoot
+      // tie-break is actually exercised across the larger build.
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'narrow-items worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 prefers many exact items over one overshooting item');
+        assert(e.data.solution !== null, 'narrow-items: found a solution');
+        if (e.data.solution) {
+          assertEqual(e.data.solution.overshoot, 0, 'narrow-items: reaches zero overshoot');
+          assertEqual(e.data.solution.total[4], 6, 'narrow-items: total hits the requirement exactly');
+          assert(e.data.solution.items.every(i => i === 1), 'narrow-items: uses only the exact-fit item');
+          assertEqual(e.data.solution.items.length, 3, 'narrow-items: uses three copies to fit exactly');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [
+          [0,0,0,0,10, 0,0,0,0,0,0,0,0,0,0],  // item0: intellect=10 (overshoot 4)
+          [0,0,0,0,2,  0,0,0,0,0,0,0,0,0,0],  // item1: intellect=2  (3x = exact)
+        ],
+        humans: [[0,0,0,0,6, 0,0,0,0,0,0,0,0,0,0]],
+        targetReqs: [[4, 6]],
+        bestPerStat: [0,0,0,0,10, 0,0,0,0,0,0,0,0,0,0],
+        inherentCount: 0, firstItems: [0, 1], initialLb: 1, maxSearchDepth: 6,
+        maxCounts: [9999, 9999], timeoutSec: 5, ecoMode: false, availability: [0, 0],
+      });
+    })();
+
+    // ── Test 6 (worker): maxCounts is a hard cap (insufficient supply -> no solution) ──
+    asyncBegin();
+    (function() {
+      // Only item0 (intellect 2) exists, capped at 3 copies => max total 6 < required 10.
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'cap worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 maxCounts hard cap prevents an unreachable target');
+        assert(e.data.solution === null, 'cap: no solution when supply is capped below the target');
+        assert(e.data.exhaustive === true, 'cap: reports exhaustive=true');
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [[0,0,0,0,2, 0,0,0,0,0,0,0,0,0,0]],
+        humans: [[0,0,0,0,10, 0,0,0,0,0,0,0,0,0,0]],
+        targetReqs: [[4, 10]],
+        bestPerStat: [0,0,0,0,2, 0,0,0,0,0,0,0,0,0,0],
+        inherentCount: 1, firstItems: [0], initialLb: 1, maxSearchDepth: 10,
+        maxCounts: [3], timeoutSec: 5, ecoMode: false, availability: [0],
+      });
+    })();
+
+    // ── Test 7 (worker): maxCounts=0 fully excludes an item ──
+    asyncBegin();
+    (function() {
+      // item0 would be the cheaper single-item answer but is excluded (maxCounts 0).
+      // The solver must fall back to item1 only.
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'exclude worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 maxCounts=0 excludes an item entirely');
+        assert(e.data.solution !== null, 'exclude: found a solution');
+        if (e.data.solution) {
+          assert(e.data.solution.items.every(i => i === 1), 'exclude: never uses the excluded item0');
+          assert(e.data.solution.total[4] >= 5, 'exclude: requirement still satisfied by item1');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [
+          [0,0,0,0,5, 0,0,0,0,0,0,0,0,0,0],  // item0: excluded by maxCounts=0
+          [0,0,0,0,5, 0,0,0,0,0,0,0,0,0,0],  // item1: usable
+        ],
+        humans: [[0,0,0,0,5, 0,0,0,0,0,0,0,0,0,0]],
+        targetReqs: [[4, 5]],
+        bestPerStat: [0,0,0,0,5, 0,0,0,0,0,0,0,0,0,0],
+        inherentCount: 1, firstItems: [1], initialLb: 1, maxSearchDepth: 5,
+        maxCounts: [0, 9999], timeoutSec: 5, ecoMode: false, availability: [0, 0],
+      });
+    })();
+
+    // ── Test 8 (worker): reported overshoot is consistent with the returned total ──
+    asyncBegin();
+    (function() {
+      const targetReqs = [[4, 6], [6, 4]];
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'consistency worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 reported overshoot matches the solution total');
+        assert(e.data.solution !== null, 'consistency: found a solution');
+        if (e.data.solution) {
+          const recomputed = computeOvershootRef(e.data.solution.total, toReqVec(targetReqs));
+          assertEqual(e.data.solution.overshoot, recomputed, 'consistency: overshoot equals recomputed excess from total');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [
+          [0,0,0,0,3, 0,0,0,0,0,0,0,0,0,0],  // intellect=3
+          [0,0,0,0,0, 0,4,0,0,0,0,0,0,0,0],  // creativity=4
+        ],
+        humans: [[0,0,0,0,6, 0,4,0,0,0,0,0,0,0,0]],
+        targetReqs,
+        bestPerStat: [0,0,0,0,3, 0,4,0,0,0,0,0,0,0,0],
+        inherentCount: 1, firstItems: [0, 1], initialLb: 1, maxSearchDepth: 6,
+        maxCounts: [9999, 9999], timeoutSec: 5, ecoMode: false, availability: [0, 0],
+      });
+    })();
+
+    // ── Test 9 (worker): two required stats fit exactly -> zero overshoot, floor collateral ──
+    asyncBegin();
+    (function() {
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'two-stat worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 exact two-stat fit reaches zero overshoot at the collateral floor');
+        assert(e.data.solution !== null, 'two-stat: found a solution');
+        if (e.data.solution) {
+          assertEqual(e.data.solution.overshoot, 0, 'two-stat: zero overshoot');
+          assertEqual(e.data.solution.collateral, 1, 'two-stat: collateral at inherent floor');
+          assertEqual(e.data.solution.total[4], 5, 'two-stat: intellect exactly met');
+          assertEqual(e.data.solution.total[6], 7, 'two-stat: creativity exactly met');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [
+          [0,0,0,0,5, 0,0,0,0,0,0,0,0,0,0],  // intellect=5 only
+          [0,0,0,0,0, 0,7,0,0,0,0,0,0,0,0],  // creativity=7 only
+        ],
+        humans: [[0,0,0,0,5, 0,7,0,0,0,0,0,0,0,0]],
+        targetReqs: [[4, 5], [6, 7]],
+        bestPerStat: [0,0,0,0,5, 0,7,0,0,0,0,0,0,0,0],
+        inherentCount: 1, firstItems: [0, 1], initialLb: 1, maxSearchDepth: 4,
+        maxCounts: [9999, 9999], timeoutSec: 5, ecoMode: false, availability: [0, 0],
+      });
+    })();
+
+    // ── Test 10 (worker): when exact is impossible, the smallest overshoot wins ──
+    asyncBegin();
+    (function() {
+      // Target intellect>=6. item0=7 (overshoot 1); item1=4 (2x=8, overshoot 2).
+      // No combination hits 6 exactly, so the minimum-overshoot build (one item0) wins.
+      const worker = new Worker('solver-worker.js');
+      const t = setTimeout(() => { assert(false, 'min-overshoot worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
+      worker.onmessage = function(e) {
+        if (e.data.type !== 'done') return;
+        clearTimeout(t);
+        section('Worker solver \u2014 minimises overshoot when an exact fit is impossible');
+        assert(e.data.solution !== null, 'min-overshoot: found a solution');
+        if (e.data.solution) {
+          assertEqual(e.data.solution.overshoot, 1, 'min-overshoot: picks the +1 build over the +2 build');
+          assert(e.data.solution.items.every(i => i === 0), 'min-overshoot: uses the single closest item');
+          assertEqual(e.data.solution.total[4], 7, 'min-overshoot: total is the closest reachable value');
+        }
+        worker.terminate();
+        asyncEnd();
+      };
+      worker.postMessage({
+        type: 'solve',
+        items: [
+          [0,0,0,0,7, 0,0,0,0,0,0,0,0,0,0],  // item0: intellect=7 (overshoot 1)
+          [0,0,0,0,4, 0,0,0,0,0,0,0,0,0,0],  // item1: intellect=4 (2x = overshoot 2)
+        ],
+        humans: [[0,0,0,0,6, 0,0,0,0,0,0,0,0,0,0]],
+        targetReqs: [[4, 6]],
+        bestPerStat: [0,0,0,0,7, 0,0,0,0,0,0,0,0,0,0],
+        inherentCount: 0, firstItems: [0, 1], initialLb: 1, maxSearchDepth: 6,
+        maxCounts: [9999, 9999], timeoutSec: 5, ecoMode: false, availability: [0, 0],
+      });
+    })();
+
     // Fallback: show summary if all tests were synchronous (no asyncBegin calls)
-    setTimeout(() => { if (asyncPending <= 0) showSummary(); }, 100);
-  </script>
+    setTimeout(() => { if (asyncPending <= 0) showSummary(); }, 100);  </script>
 </body>
 </html>

@@ -87,7 +87,7 @@
         </button>
         <div class="card-body hidden" id="inventory-body">
           <div class="inventory-toolbar">
-            <label class="checkbox-label">
+            <label class="checkbox-label" title="Food is freely craftable, so it stays truly unlimited. Memories are finite collectibles, so each is capped at its world maximum (WorldCount) even in unlimited mode.">
               <input type="checkbox" id="unlimited-check" checked>
               <span>Assume unlimited resources</span>
             </label>
@@ -170,8 +170,8 @@
             <label>Worker threads</label>
             <input type="number" id="threads-input" value="0" min="0" max="64" class="input-sm">
             <label>Max recipe depth</label>
-            <input type="number" id="depth-input" value="30" min="0" max="100" class="input-sm">
-            <span class="hint" style="grid-column:1/-1">Threads 0 = auto-detect. Timeout applies per worker. Depth 0 = auto (30).</span>
+            <input type="number" id="depth-input" value="100" min="0" max="100" class="input-sm">
+            <span class="hint" style="grid-column:1/-1">Threads 0 = auto-detect. Timeout applies per worker. Depth 0 = auto (100).</span>
           </div>
         </div>
       </section>
@@ -214,7 +214,7 @@
             <div class="progress-bar" id="progress-bar"></div>
           </div>
           <div class="progress-stats" id="progress-stats">
-            <span id="p-depth">Depth: —</span>
+            <span id="p-depth" title="Each worker's current iterative-deepening search front (shown as min–max across threads). The best solution found can use more items than this number, because the improver and greedy seeds aren't limited by the current search depth.">Depth: —</span>
             <span id="p-nodes">Nodes: 0</span>
             <span id="p-time">Time: 0.0s</span>
           </div>
