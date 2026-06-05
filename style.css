@@ -78,6 +78,7 @@ a:hover { text-decoration: underline; }
   cursor: pointer; border: none; border-bottom: 1px solid transparent; color: var(--text-bright);
   font: inherit; text-align: left; background: transparent;
   transition: background .15s;
+  user-select: none; -webkit-user-select: none;
 }
 .card-toggle:hover { background: rgba(255,255,255,.03); }
 .card-toggle.open { border-bottom-color: var(--border); }

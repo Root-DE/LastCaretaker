@@ -28,16 +28,34 @@ Hosted on GitHub Pages from the root of the `main` branch.
 ## Project Structure
 
 ```
-index.html          Main page
-app.js              UI logic, CSV parsing, worker management
-solver-worker.js    Web Worker: specificity-optimised DFS
-style.css           Dark theme styles
-data/               CSV game data (humans, food, memories)
-tests.html          Browser-based test suite
-run-tests.js        Headless test runner for CI (Playwright)
-.nojekyll           Disable Jekyll processing on GitHub Pages
-.github/workflows/  CI: tests on PR, security scanning
+index.html              Main page
+app.js                  UI logic, CSV parsing, worker management
+solver-worker.js        Web Worker: specificity-optimised DFS
+solver-kernel.wasm      Compiled hot-path kernel (built from wasm/solver-kernel.wat)
+wasm/solver-kernel.wat  Reviewable WebAssembly source for the kernel
+scripts/build-wasm.js   Compiles the .wat to solver-kernel.wasm (npm run build:wasm)
+style.css               Dark theme styles
+data/                   CSV game data (humans, food, memories)
+tests.html              Browser-based test suite
+run-tests.js            Headless test runner for CI (Playwright)
+.nojekyll               Disable Jekyll processing on GitHub Pages
+.github/workflows/      CI: tests on PR, security scanning
 ```
+
+### WebAssembly kernel
+
+The solver's hottest operation (`countValid`, run at nearly every search node) is a
+small WebAssembly kernel for ~2.3× faster counting. Its source of truth is the
+human-readable [`wasm/solver-kernel.wat`](wasm/solver-kernel.wat); the worker
+loads the compiled `solver-kernel.wasm` at runtime and falls back to an identical
+JS implementation if it can't be fetched. After editing the `.wat`, rebuild with:
+
+```
+npm run build:wasm
+```
+
+CI recompiles the `.wat` and fails if the committed `solver-kernel.wasm` is out of
+date, so the binary is always verifiably in sync with its reviewed source.
 
 ## How It Works
 

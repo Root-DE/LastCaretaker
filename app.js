@@ -344,8 +344,11 @@ function buildItemGrid(containerId, itemList, kind) {
 function getResourceLimits() {
   const unlimited = document.getElementById('unlimited-check').checked;
   const limits = { foods: [], memories: [] };
+  // Unlimited mode: food is freely craftable (truly unlimited), but memories are
+  // finite collectibles — cap each at its world maximum (WorldCount). A memory with
+  // no recorded world count (0) falls back to unlimited rather than being excluded.
   foods.forEach((_, i) => limits.foods.push(unlimited ? 9999 : getInvValue('food', i)));
-  memories.forEach((_, i) => limits.memories.push(unlimited ? 9999 : getInvValue('memory', i)));
+  memories.forEach((m, i) => limits.memories.push(unlimited ? (m.availability || 9999) : getInvValue('memory', i)));
   return limits;
 }
 
@@ -1025,6 +1028,23 @@ function startSolve() {
       if (!inp || inp.value === '') return 0; // unlimited = no eco cost
       return parseInt(inp.value) || 0;
     });
+  } else if (pendingEcoMode === 1) {
+    // World Eco: the denominator is the world rarity (TotalAvailability / WorldCount).
+    // But if the player's inventory shows MORE of an item than the world count says
+    // exists, that higher number is the real ceiling — so use it as the denominator
+    // (more abundant ⇒ lower cost). Empty/unlimited inventory leaves the world count
+    // unchanged. Foods are craftable, so a stocked inventory naturally lifts their cap.
+    availabilityForWorker = items.map(it => {
+      const base = it.availability || 0;
+      const kind = it.kind === 'Food' ? 'food' : 'memory';
+      const list = it.kind === 'Food' ? foods : memories;
+      const idx  = list.findIndex(x => x.name === it.name);
+      if (idx < 0) return base;
+      const inp = document.querySelector(`.inv-item-input[data-kind="${kind}"][data-index="${idx}"]`);
+      if (!inp || inp.value === '') return base; // unset / unlimited → keep world count
+      const inv = parseInt(inp.value) || 0;
+      return Math.max(base, inv);
+    });
   } else {
     availabilityForWorker = items.map(it => it.availability || 0);
   }
@@ -1035,7 +1055,7 @@ function startSolve() {
   numWorkers = Math.min(threads, items.length);
 
   const depthSetting = parseInt(document.getElementById('depth-input').value) || 0;
-  const maxSearchDepth = depthSetting > 0 ? depthSetting : 30;
+  const maxSearchDepth = depthSetting > 0 ? depthSetting : 100;
   currentMaxSearchDepth = maxSearchDepth;
 
   // Clamp maxCounts to maximum useful repetitions per item (>=: need total >= val)
@@ -1117,6 +1137,19 @@ function startSolve() {
   }
 }
 
+// Rank one worker solution against another using the same objective order as the
+// worker: collateral first, then overshoot (excess stats), then the cost/size
+// tie-break (eco resourceCost, else item count). Returns true if `a` is better.
+function solutionRanksBetter(a, b) {
+  if (!b) return true;
+  if (a.collateral !== b.collateral) return a.collateral < b.collateral;
+  const ao = a.overshoot ?? Infinity, bo = b.overshoot ?? Infinity;
+  if (ao !== bo) return ao < bo;
+  return ecoModeActive
+    ? (a.resourceCost || 0) < (b.resourceCost ?? Infinity)
+    : a.items.length < b.items.length;
+}
+
 function handleWorkerMsg(workerIdx, msg) {
   if (!solving) return;
   switch (msg.type) {
@@ -1124,10 +1157,7 @@ function handleWorkerMsg(workerIdx, msg) {
       workerNodes[workerIdx] = msg.nodes;
       break;
     case 'newBest':
-      if (!globalBest || msg.solution.collateral < globalBest.collateral ||
-          (msg.solution.collateral === globalBest.collateral && (ecoModeActive
-            ? (msg.solution.resourceCost || 0) < (globalBest.resourceCost ?? Infinity)
-            : msg.solution.items.length < globalBest.items.length))) {
+      if (!globalBest || solutionRanksBetter(msg.solution, globalBest)) {
         globalBest = msg.solution;
         allSolutions.push(msg.solution);
         if (!userBrowsingSolutions) {
@@ -1152,10 +1182,7 @@ function handleWorkerMsg(workerIdx, msg) {
       break;
     case 'done':
       if (msg.solution) {
-        if (!globalBest || msg.solution.collateral < globalBest.collateral ||
-            (msg.solution.collateral === globalBest.collateral && (ecoModeActive
-              ? (msg.solution.resourceCost || 0) < (globalBest.resourceCost ?? Infinity)
-              : msg.solution.items.length < globalBest.items.length))) {
+        if (!globalBest || solutionRanksBetter(msg.solution, globalBest)) {
           globalBest = msg.solution;
         }
       }
