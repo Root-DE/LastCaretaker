@@ -6,7 +6,7 @@ The solver minimises **collateral profession matches** — not just item count �
 
 ## Live Site
 
-Hosted on GitHub Pages from the root of the `main` branch.
+Hosted on GitHub Pages from the root of the `master` branch.
 
 ## Features
 
@@ -96,9 +96,14 @@ For custom entries added by users (not from the wiki), images won't be available
 
 ## CI / CD
 
-- **On pull request**: Tests run in a headless browser (Playwright), linting and security checks via Super-Linter
-- **On push to main**: Same test + lint pipeline
+- **On pull request**: The full test suite runs in a headless browser (Playwright), plus linting and security checks via Super-Linter
+- **On push to `master`**: Same test + lint pipeline
 - **Weekly (scheduled)**: CodeQL analysis for vulnerability scanning
+
+GitHub Pages deploys from the root of `master`, so the CI workflow is the
+gate before deployment: make it a **required status check** on `master`
+(Settings → Branches → branch protection) so no change can merge — and therefore
+nothing can deploy — unless every test passes.
 
 ## Running Tests Locally
 
