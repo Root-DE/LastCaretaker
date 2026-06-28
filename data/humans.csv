@@ -10,7 +10,7 @@ Arts & Culture;Existential Expressionist T4;20;30;200;;;;120;60;;80;;;;;
 Educator;Manual Holder T1;40;100;10;;;;;5;;;;;;10;10
 Educator;Teacher T2;60;160;10;;;;;15;;;;;;12;10
 Educator;Professor T3;90;180;10;;;;;20;;;;;;30;60
-Educator;Existential Chancellor T4;48;200;10;;;;;100;;;;;;80;120
+Educator;Existential Chancellor T4;120;200;10;;;;;100;;;;;;80;120
 Agriculture;Nutrient Handler T1;20;160;50;;;;4;;;;;3;;5;
 Agriculture;Growth Specialist T2;20;180;60;;;;20;;;;;10;;15;
 Agriculture;Biosphere Director T3;20;190;120;;;;35;;;;;30;;40;
@@ -21,7 +21,7 @@ Logistics;Resource Director T3;20;190;10;;;;;;35;;40;;30;;
 Logistics;Logistics High Command T4;20;220;10;;;;;;80;;100;;120;;
 Military;Door Jammer T1;20;30;10;60;;;;;2;;2;5;;;
 Military;Guard T2;20;30;10;120;;;;;15;;12;10;;;
-Military;Station Protector T3;20;30;10;130;;;;;40;;35;30;;;
+Military;Station Protector T3;20;180;10;130;;;;;40;;35;30;;;
 Military;Guardian of Humanity T4;20;200;10;200;;;;;100;;120;80;;;
 Science;Lab Technician T1;20;30;10;;80;;;;;;;;5;5;3
 Science;Field Research Scientist T2;20;30;10;;110;;;;;;;;9;10;9
