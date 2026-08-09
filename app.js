@@ -14,6 +14,16 @@ const STAT_LABELS = {
   wisdom:'Wisdom',
 };
 
+// Short column headings for the edit tables. "Communication" is wider than any
+// value beneath it, and with 15 stat columns the headings alone decide whether
+// the table fits the screen. The full label rides along as a tooltip.
+const STAT_ABBR = {
+  weight:'Weight', height:'Height', life_exp:'Life', strength:'Str',
+  intellect:'Int', adaptability:'Adapt', creativity:'Creat',
+  communication:'Comm', disipline:'Disc', empathy:'Emp', focus:'Focus',
+  leadership:'Lead', logic:'Logic', patience:'Pat', wisdom:'Wis',
+};
+
 const CATEGORY_CLASS = {
   'Engineer':'cat-engineer','Arts & Culture':'cat-arts','Educator':'cat-educator',
   'Agriculture':'cat-agriculture','Logistics':'cat-logistics','Military':'cat-military',
@@ -526,7 +536,7 @@ function buildFoodTable() {
   const statCols = ['weight','height','life_exp','strength','intellect'];
   const wrap = document.getElementById('food-table-wrap');
   let html = '<table class="edit-table"><thead><tr><th>Food</th>';
-  statCols.forEach(s => { html += `<th>${STAT_LABELS[s]}</th>`; });
+  statCols.forEach(s => { html += `<th title="${STAT_LABELS[s]}">${STAT_ABBR[s]}</th>`; });
   html += '<th></th></tr></thead><tbody>';
   foods.forEach((f, fi) => {
     html += `<tr><td><input type="text" value="${esc(f.name)}" class="edit-name-input"
@@ -563,7 +573,7 @@ function buildMemoryTable() {
                     'focus','intellect','leadership','logic','patience','wisdom'];
   const wrap = document.getElementById('memory-table-wrap');
   let html = '<table class="edit-table"><thead><tr><th>Memory</th>';
-  statCols.forEach(s => { html += `<th>${STAT_LABELS[s]}</th>`; });
+  statCols.forEach(s => { html += `<th title="${STAT_LABELS[s]}">${STAT_ABBR[s]}</th>`; });
   html += '<th></th></tr></thead><tbody>';
   memories.forEach((m, mi) => {
     html += `<tr><td><input type="text" value="${esc(m.name)}" class="edit-name-input"
@@ -598,10 +608,16 @@ function buildMemoryTable() {
 function buildHumanTable() {
   const wrap = document.getElementById('human-table-wrap');
   let html = '<table class="edit-table"><thead><tr><th>Profession</th><th>Category</th>';
-  STAT_NAMES.forEach(s => { html += `<th>${STAT_LABELS[s]}</th>`; });
+  STAT_NAMES.forEach(s => { html += `<th title="${STAT_LABELS[s]}">${STAT_ABBR[s]}</th>`; });
   html += '<th></th></tr></thead><tbody>';
+  let prevCategory = null;
   humans.forEach((h, hi) => {
-    html += `<tr><td><input type="text" value="${esc(h.profession)}" class="edit-name-input"
+    // Rows are grouped by category in file order; mark where each group starts
+    // so the table can rule between them and the tiers read as a set.
+    const startsGroup = h.category !== prevCategory && hi > 0;
+    prevCategory = h.category;
+    html += `<tr${startsGroup ? ' class="group-start"' : ''}>
+      <td><input type="text" value="${esc(h.profession)}" class="edit-name-input"
               data-type="human" data-index="${hi}" data-field="profession"></td>`;
     html += `<td><input type="text" value="${esc(h.category)}" class="edit-name-input edit-cat-input"
               data-type="human" data-index="${hi}" data-field="category"></td>`;

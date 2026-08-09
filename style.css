@@ -549,7 +549,19 @@ a:hover { text-decoration: underline; }
    the space it needs, numbers sit in fixed right-aligned columns, and the
    inputs carry no chrome until you interact with them — a grid of outlined
    boxes reads as noise at this density. It scrolls rather than crushing. */
-.table-wrap { overflow-x: auto; margin: 0 -18px; padding: 0 18px; }
+/* Human Requirements is 17 columns wide and cannot fit any screen, so the
+   table scrolls sideways. The name column is pinned so you never lose track
+   of which row you are reading, and the edge shadows appear only while there
+   is more to scroll to — the affordance is the data itself moving under the
+   pinned column. */
+.table-wrap {
+  overflow-x: auto;
+  background:
+    linear-gradient(to right, var(--surface) 40%, transparent) left center / 28px 100% no-repeat local,
+    linear-gradient(to left,  var(--surface) 40%, transparent) right center / 28px 100% no-repeat local,
+    linear-gradient(to right, rgba(0,0,0,.22), transparent) left center / 12px 100% no-repeat scroll,
+    linear-gradient(to left,  rgba(0,0,0,.22), transparent) right center / 12px 100% no-repeat scroll;
+}
 .edit-table {
   width: 100%; min-width: 560px; border-collapse: collapse;
   font-size: .86rem; font-family: var(--font-sans);
@@ -561,14 +573,41 @@ a:hover { text-decoration: underline; }
   text-transform: uppercase; letter-spacing: .06em; font-size: .72rem;
   font-family: var(--font-display);
 }
-.edit-table th:first-child { text-align: left; }
-.edit-table th:last-child { width: 40px; }
+
 .edit-table td { padding: 2px 4px; border-bottom: 1px solid var(--line); }
-.edit-table td:first-child { padding-left: 0; }
 .edit-table tbody tr:hover { background: var(--hover); }
 
+/* Pin the identity columns: they are the key to every other cell in the row.
+   In Human Requirements that means profession *and* category, which travel
+   together as one block — hence the fixed first-column width, so the second
+   knows where to stick. */
+.edit-table th:first-child,
+.edit-table td:first-child {
+  position: sticky; left: 0; z-index: 2;
+  text-align: left; padding-left: 0;
+  background: var(--surface);
+}
+.edit-table th:first-child { z-index: 3; }
+.edit-table tbody tr:hover td:first-child { background: var(--surface-2); }
+.edit-table th:first-child, .edit-table td:first-child { border-right: 1px solid var(--line); }
+
+#edit-humans .edit-table th:first-child,
+#edit-humans .edit-table td:first-child { width: 232px; border-right: none; }
+#edit-humans .edit-table th:nth-child(2),
+#edit-humans .edit-table td:nth-child(2) {
+  position: sticky; left: 232px; z-index: 2;
+  text-align: left; background: var(--surface);
+  border-right: 1px solid var(--line);
+}
+#edit-humans .edit-table th:nth-child(2) { z-index: 3; }
+#edit-humans .edit-table tbody tr:hover td:nth-child(2) { background: var(--surface-2); }
+
+/* A heavier rule wherever the category changes, so the four tiers of a
+   category read as one block instead of forty undifferentiated rows. */
+.edit-table tbody tr.group-start > td { border-top: 2px solid var(--line-strong); }
+
 .edit-table input {
-  width: 100%; padding: 7px 8px; text-align: right;
+  width: 100%; padding: 7px 5px; text-align: right;
   background: transparent; border: 1px solid transparent;
   border-radius: var(--r); color: var(--ink);
   font-size: .86rem; font-family: var(--font-mono);
@@ -583,13 +622,34 @@ a:hover { text-decoration: underline; }
 
 /* Names are the reason this table exists — give them the room and the
    readable face, and let the column stretch instead of clipping. */
+/* Widest real values are "PECO Athletics - Triple Jump" and "Existential
+   Expressionist T4"; 220px clears both with room for a longer future entry. */
 .edit-name-input {
   text-align: left !important; font-family: var(--font-sans) !important;
-  color: var(--ink-bright); font-weight: 500; min-width: 170px;
+  color: var(--ink-bright); font-weight: 500; min-width: 215px;
 }
-.edit-cat-input { text-align: left !important; font-family: var(--font-sans) !important; min-width: 120px; }
-.edit-table td:has(.edit-name-input) { width: 100%; }
-.edit-table td:has(input[type=number]) { width: 84px; }
+.edit-cat-input { text-align: left !important; font-family: var(--font-sans) !important; min-width: 110px; }
+/* Slack goes to the trailing column, never to the name or the numbers: a
+   5-column Food table in a wide card must not stretch into one long gap
+   between the name and its stats. */
+.edit-table th:last-child, .edit-table td:last-child { width: 100%; text-align: left; }
+.edit-table td:has(input[type=number]) { width: 64px; }
+/* The name column asks for all remaining space, and auto table layout will
+   take it from the number columns until three-digit values no longer fit.
+   This floor is what stops that: 48px holds "220" plus its padding. */
+.edit-table input[type=number] { min-width: 48px; }
+
+/* Prose wants a narrow measure; a 17-column table wants the whole screen. The
+   data card breaks out of the reading column up to the viewport width — but
+   only once it is open. Collapsed, it is just another header in the stack and
+   must line up with the rest of them. */
+#edit-card:has(> .card-body:not(.hidden)) {
+  width: fit-content;                        /* only as wide as the open tab needs */
+  min-width: min(100%, calc(100vw - 32px));  /* never narrower than the reading column */
+  max-width: calc(100vw - 32px);
+  margin-left: 50%;
+  transform: translateX(-50%);
+}
 
 .btn-add {
   margin-top: 10px; background: transparent; color: var(--ink-dim);
@@ -639,7 +699,13 @@ tr:hover .btn-del-row { opacity: 1; }
   font-size: .82rem; padding: 11px 26px;
 }
 .btn-solve:hover:not(:disabled) { filter: brightness(1.08); color: var(--signal-ink); }
-.btn-solve:disabled { opacity: .45; cursor: not-allowed; }
+/* Fading the orange fill left a muddy block that still read as the primary
+   action, with its dark ink barely legible on top. A disabled control should
+   look inert, not dimmed. */
+.btn-solve:disabled {
+  background: var(--surface-3); border-color: var(--line);
+  color: var(--ink-faint); opacity: 1; cursor: not-allowed;
+}
 .btn-cancel { background: transparent; border-color: var(--danger-edge); color: var(--danger); padding: 11px 20px; font-size: .82rem; }
 .btn-cancel:hover { background: var(--danger-wash); border-color: var(--danger); color: var(--danger); }
 .btn-pause { background: transparent; border-color: var(--signal-edge); color: var(--signal); padding: 11px 20px; font-size: .82rem; }
