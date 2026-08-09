@@ -250,8 +250,8 @@ function showRequirements(idx) {
   panel.classList.remove('hidden');
 }
 
-function stripTier(name) { return name.replace(/ T\d+$/, ''); }
-function getTier(name) { const m = name.match(/ T(\d+)$/); return m ? parseInt(m[1]) : 0; }
+// stripTier / getTier / collateralRisk live in profession-model.js, loaded
+// before this file and shared with the test page.
 
 function groupByCategory(list) {
   const cats = {};
@@ -1658,6 +1658,7 @@ function profItemHTML(m) {
     : m.isInherent
       ? 'This profession\u2019s requirements are a subset of your target \u2014 it will always match regardless of recipe.'
       : 'This profession matched due to side-effect stats. A better recipe might avoid it.';
+
   return `<div class="prof-item" title="${esc(tooltip)}">
     <span class="prof-dot ${dotCls}"></span>
     <span class="prof-name">${esc(m.profession)}</span>
