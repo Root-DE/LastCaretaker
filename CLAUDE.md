@@ -66,6 +66,14 @@ Message protocol (app ⇄ worker): app sends `solve`, `stop`, `pause`, `resume`;
 
 **Prefer not to add to that pile.** New pure logic belongs in its own classic script loaded by both `index.html` and `tests.html` — [inventory-storage.js](inventory-storage.js) is the pattern. Then the tests exercise the shipped code, and `app.js` keeps only the DOM glue.
 
+## Fonts and visual direction
+
+[style.css](style.css) is a token system with dark as the default ground and a light theme applied both via `prefers-color-scheme` and an explicit `[data-theme]` override — **the light values exist in two blocks and must be edited together**, or the toggle and the OS preference disagree.
+
+Palette values and structural conventions (2px corners, mono uppercase eyebrows, the status strip, orange signal against phosphor-green system state) are aligned with the official game site so the tool reads as a companion to it. Their wordmark, artwork and licensed display face (Stratum2) are deliberately **not** used. The display face is [Saira](fonts/) — SIL OFL, self-hosted as one variable woff2, with [fonts/OFL.txt](fonts/OFL.txt) retained as the licence requires. Keep it self-hosted: a webfont CDN would add a third-party request to every page load, which this site otherwise has none of.
+
+Saira carries the interface voice (names, labels, actions, prose); the mono stack is reserved for readings — anything the solver measured or counted.
+
 ## CI
 
 [.github/workflows/ci.yml](.github/workflows/ci.yml) runs on PRs and pushes to `master`: wasm-in-sync check → Playwright test run (waits for the static server to accept connections first) → Super-Linter (`VALIDATE_ALL_CODEBASE: false` — diff-scoped, so pre-existing style is not enforced) → dependency review. [security.yml](.github/workflows/security.yml) runs CodeQL weekly. CI is the deploy gate and should be a required status check on `master`.
