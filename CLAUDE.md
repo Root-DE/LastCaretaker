@@ -42,6 +42,7 @@ Bench env vars: `BENCH_PORT`, `BENCH_TIMEOUT`, `BENCH_THREADS`, `BENCH_DEPTH`, `
 
 | | |
 |---|---|
+| [stat-mapping.js](stat-mapping.js) | `STAT_NAMES`, the labels, and `STAT_COLUMNS` — the only place a CSV column becomes a stat index |
 | [inventory-storage.js](inventory-storage.js) | the `tlc_inventory` format, its v1 conversion, and `subtractFromStock` |
 | [profession-model.js](profession-model.js) | `getTier`, `stripTier`, `collateralRisk` |
 | [theme-mode.js](theme-mode.js) | `resolveTheme`, `readThemeMode` — **also loaded from the document head**, before the stylesheet, so the stored theme is on the root element at first paint |
@@ -50,9 +51,9 @@ Message protocol (app ⇄ worker): app sends `solve`, `stop`, `pause`, `resume`;
 
 ## Invariants worth knowing before editing
 
-- **The 15-stat vector order is a hard contract.** `STAT_NAMES` in [app.js:3](app.js#L3) fixes indices 0–14 (weight, height, life_exp, strength, intellect, adaptability, creativity, communication, disipline, empathy, focus, leadership, logic, patience, wisdom). Items, humans, `bestPerStat`, `reqVec`, the wasm memory layout, and the duplicated copies in `tests.html` all assume it. Reordering it silently corrupts every solve.
+- **The 15-stat vector order is a hard contract.** `STAT_NAMES` in [stat-mapping.js](stat-mapping.js) fixes indices 0–14 (weight, height, life_exp, strength, intellect, adaptability, creativity, communication, disipline, empathy, focus, leadership, logic, patience, wisdom). Items, humans, `bestPerStat`, `reqVec`, the wasm memory layout, and the duplicated copies in `tests.html` all assume it. Reordering it silently corrupts every solve.
 
-- **CSV headers are inconsistent between files and must be matched verbatim.** Humans use `Life Exp.` and the misspelled `Disipline`; food uses `Life Exp`; memories use `Discipline`. Files are `;`-delimited, and a blank cell means zero. See `humanStats` / `foodStats` / `memoryStats` in [app.js](app.js#L85-L131).
+- **CSV headers are consistent across the three files** — `Life Exp`, `Discipline`, no stray whitespace. They used to differ (`Life Exp.` in humans, and `Disipline` misspelled, which was also the internal stat key), so `statCell` accepts the old spellings as well and any CSV exported before the correction still imports — those two capitalised legacy strings are the compatibility shim, not leftovers to tidy away. Files are `;`-delimited, and a blank cell means zero. The mapping is declared as data in `STAT_COLUMNS` ([stat-mapping.js](stat-mapping.js)) — add a column there, not in a mapper.
 
 - **Intellect reaches a human through food only.** Every food grants it; no memory does, so `memories.csv` has no such column and `memoryStats` never sets index 4. The 15-stat vector still reserves that index — food fills it.
 
@@ -66,13 +67,13 @@ Message protocol (app ⇄ worker): app sends `solve`, `stop`, `pause`, `resume`;
 
 - **The wasm binary is committed and CI verifies it.** After editing the `.wat`, run `npm run build:wasm` and commit the regenerated `solver-kernel.wasm`; CI recompiles and fails on `git diff --exit-code`. `.gitattributes` marks `*.wasm` binary so line-ending normalization can't corrupt it.
 
-- **Inventory persists in `localStorage` under `tlc_inventory`, keyed by item name** ([inventory-storage.js](inventory-storage.js)). Version 1 blobs were keyed by list position; `migrateInventoryData` converts them on read against *the reader's current list order*. Any commit that reorders or inserts rows in `data/*.csv` must therefore ship **after** that conversion has been live long enough for users to have loaded the site once — otherwise old counts migrate onto the wrong items.
+- **Inventory persists in `localStorage` under `tlc_inventory`, keyed by item name** ([inventory-storage.js](inventory-storage.js)). Version 1 blobs were keyed by list position; `migrateInventoryData` converts them against `LEGACY_V1_ORDER`, a frozen snapshot of the item order as it stood when those blobs were written. That snapshot is why `data/*.csv` can now be reordered or extended freely — do not update it to match new data, or every old inventory converts onto the wrong items.
 
 - **In an inventory field, blank means unlimited for that item and `0` excludes it from the search entirely.** Unticking "Assume unlimited resources" seeds every blank with `0` so the user starts from "I have nothing" — but that fill must only run on a real click. The restore paths (`loadInventory`, `handleInvCSVUpload`) pass `toggleUnlimited(false)`; otherwise a deliberately blank field comes back as `0` and the item silently vanishes from every solve. Same trap in `applySolution` (use `subtractFromStock`) and in the CSV export, which writes blank as blank in both modes.
 
 ## Testing conventions
 
-`tests.html` **inlines copies of app.js pure functions** (`parseCSV`, `esc`, `foodStats`, `memoryStats`, `formatNum`, …) because `app.js` is a plain script that self-starts on `DOMContentLoaded` and cannot be imported. Editing one of those in `app.js` without mirroring it in `tests.html` produces green tests that assert nothing about the shipped code.
+`tests.html` still **inlines copies of a few app.js helpers** (`parseCSV`, `esc`, `formatNum`, …) because `app.js` is a plain script that self-starts on `DOMContentLoaded` and cannot be imported. Editing one of those in `app.js` without mirroring it in `tests.html` produces green tests that assert nothing about the shipped code — that is not a hypothetical, it is how an intellect mapping once went missing from the shipped file while the suite stayed green.
 
 **Prefer not to add to that pile.** New pure logic belongs in its own classic script loaded by both `index.html` and `tests.html` — the three above are the pattern. Then the tests exercise the shipped code, and `app.js` keeps only the DOM glue.
 
