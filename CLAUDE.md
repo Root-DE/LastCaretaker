@@ -58,7 +58,7 @@ Message protocol (app ⇄ worker): app sends `solve`, `stop`, `pause`, `resume`;
 
 - **Inventory persists in `localStorage` under `tlc_inventory`, keyed by item name** ([inventory-storage.js](inventory-storage.js)). Version 1 blobs were keyed by list position; `migrateInventoryData` converts them on read against *the reader's current list order*. Any commit that reorders or inserts rows in `data/*.csv` must therefore ship **after** that conversion has been live long enough for users to have loaded the site once — otherwise old counts migrate onto the wrong items.
 
-- **In limited mode a blank field means unlimited, but unticking "Assume unlimited resources" fills every blank with `0`**, and `0` excludes an item from the search entirely. Blanks are not persisted, so a deliberately-blank field returns as `0` after a reload. This is intended: limited mode means "I list what I have".
+- **In an inventory field, blank means unlimited for that item and `0` excludes it from the search entirely.** Unticking "Assume unlimited resources" seeds every blank with `0` so the user starts from "I have nothing" — but that fill must only run on a real click. The restore paths (`loadInventory`, `handleInvCSVUpload`) pass `toggleUnlimited(false)`; otherwise a deliberately blank field comes back as `0` and the item silently vanishes from every solve. Same trap in `applySolution` (use `subtractFromStock`) and in the CSV export, which writes blank as blank in both modes.
 
 ## Testing conventions
 

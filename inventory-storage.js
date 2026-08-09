@@ -109,6 +109,16 @@ function migrateInventoryData(data, foodNames, memoryNames) {
   return out;
 }
 
+// How a stock field changes when an applied recipe consumes `used` of it.
+// A blank field means unlimited stock, so there is nothing to subtract — it must
+// stay blank rather than collapsing to 0, which would exclude the item entirely.
+function subtractFromStock(value, used) {
+  if (value === '' || value === null || value === undefined) return '';
+  const cur = parseInt(value, 10);
+  if (!Number.isFinite(cur)) return '';
+  return String(Math.max(0, cur - used));
+}
+
 // Build the blob to persist from name-keyed counts.
 function serializeInventory(counts, unlimited) {
   const blob = { _v: INVENTORY_STORAGE_VERSION, _unlimited: !!unlimited, food: {}, memory: {} };
