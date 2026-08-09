@@ -615,9 +615,9 @@
       // The cartridge memories all share one stat block. Asserted against the
       // shipped CSV rather than a literal so a dropped or mistyped row fails here.
       const CARTRIDGES = [
-        'Breakdown', 'Chiptropolis', 'Fluctuations', 'Guitar Slinger',
+        'Angerkoski', 'Breakdown', 'Chiptropolis', 'Fluctuations', 'Guitar Slinger',
         'Keys to Imagination', 'Lonelies', 'PECO Athletics - 100m Dash',
-        'PECO Athletics - Javelin', 'PECO Athletics - Triple Jump',
+        'PECO Athletics - Javelin', 'PECO Athletics - Triple Jump', 'Poushki',
         'Second Reality', 'Starshine', "Touchin' the Chip", 'Turbulence',
       ];
       const label = 'Memory dataset — cartridge memories share one stat block';
@@ -642,6 +642,27 @@
           section(label);
           assert(false, 'failed to load memories.csv: ' + err.message);
         })
+        .finally(() => asyncEnd());
+    })();
+
+    asyncBegin();
+    (function() {
+      // The Oath Token moves ten stats at once, which is why a human grown with
+      // it qualifies for several professions and the result looks random.
+      const label = 'Memory dataset — Oath Token grants 50 to every mental stat';
+      const MENTAL = ['Adaptability','Communication','Creativity','Discipline','Empathy',
+                      'Focus','Leadership','Logic','Patience','Wisdom'];
+      fetch('data/memories.csv')
+        .then(r => r.text())
+        .then(text => {
+          section(label);
+          const row = parseCSV(text).rows.find(r => r['Memory'] === 'Oath Token');
+          if (!row) { assert(false, 'Oath Token is present in memories.csv'); return; }
+          MENTAL.forEach(stat => assertEqual(row[stat], '50', 'Oath Token ' + stat.toLowerCase()));
+          assertEqual(row['Intellect'], '', 'Oath Token grants no intellect');
+          assert(parseInt(row['WorldCount'], 10) > 0, 'Oath Token has a world count');
+        })
+        .catch(err => { section(label); assert(false, 'failed to load memories.csv: ' + err.message); })
         .finally(() => asyncEnd());
     })();
 
