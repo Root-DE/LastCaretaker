@@ -250,20 +250,66 @@ a:hover { text-decoration: underline; }
 .brand-sub {
   font-size: .78rem; color: var(--ink-dim);
 }
-.theme-toggle {
-  flex-shrink: 0;
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 34px; height: 34px; padding: 0;
-  background: var(--surface); border: var(--rule); border-radius: var(--r);
-  color: var(--ink-dim); cursor: pointer; transition: color .15s, border-color .15s;
+/* Theme switch: three radios rendered as a track with a labelled knob. One
+   value, so the modes cannot be held at once. The knob says which mode is
+   chosen; the icon at each end lights up to show which theme is actually in
+   force — the only way to see what Auto resolved to. */
+.theme-switch {
+  display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0;
 }
-.theme-toggle:hover { color: var(--signal); border-color: var(--line-strong); }
-.theme-toggle .icon-sun { display: none; }
-:root[data-theme="light"] .theme-toggle .icon-sun { display: block; }
-:root[data-theme="light"] .theme-toggle .icon-moon { display: none; }
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) .theme-toggle .icon-sun { display: block; }
-  :root:not([data-theme="dark"]) .theme-toggle .icon-moon { display: none; }
+/* The end icons are buttons: they jump straight to that mode, and they light
+   up to show which theme is actually in force. */
+.theme-icon {
+  display: inline-flex; padding: 4px; border: none; background: none;
+  color: var(--ink-faint); flex-shrink: 0; cursor: pointer;
+  border-radius: 999px; transition: color .18s ease;
+}
+.theme-icon:hover { color: var(--ink-bright); background: var(--hover); }
+:root[data-theme="dark"]  .icon-dark,
+:root[data-theme="light"] .icon-light { color: var(--ink-bright); }
+
+/* The track holds two knob-widths, not three, so it stays compact — the three
+   stops overlap rather than sitting side by side, and there is no room for
+   three labels. Only the knob is ever labelled. */
+.theme-track {
+  position: relative; display: grid; grid-template-columns: repeat(3, 34px);
+  border: var(--rule); border-radius: 999px; background: var(--bg); padding: 2px;
+  touch-action: pan-y;   /* we own horizontal drags, the page keeps vertical */
+}
+.theme-radio {
+  position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none;
+}
+/* Drag and click zones. Their labels stay in the DOM, transparent, so the
+   radios keep their accessible names. */
+.theme-stop {
+  position: relative; z-index: 1; cursor: grab; user-select: none;
+  padding: 5px 0; text-align: center; white-space: nowrap;
+  font-family: var(--font-display); font-size: .64rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .02em;
+  color: transparent;
+}
+.theme-track:active .theme-stop { cursor: grabbing; }
+/* One constant size, half the track wide, so it travels exactly one knob-width
+   from end to end. transform percentages are of the knob's own width. */
+.theme-knob {
+  position: absolute; z-index: 2; top: 2px; bottom: 2px; left: 2px;
+  width: calc((100% - 4px) * .5);
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 999px; background: var(--signal); color: var(--signal-ink);
+  font-family: var(--font-display); font-size: .64rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .02em; white-space: nowrap;
+  pointer-events: none; transition: transform .18s ease;
+}
+/* Position and label both come from the root attribute, which the document
+   head sets from storage before first paint — so a stored Dark or Light is
+   already in place and the knob never slides in from Auto on load. */
+:root[data-theme-mode="dark"]  .theme-knob::after { content: 'Dark'; }
+:root[data-theme-mode="auto"]  .theme-knob::after { content: 'Auto'; }
+:root[data-theme-mode="light"] .theme-knob::after { content: 'Light'; }
+:root[data-theme-mode="auto"]  .theme-knob { transform: translateX(50%); }
+:root[data-theme-mode="light"] .theme-knob { transform: translateX(100%); }
+.theme-radio:focus-visible + .theme-stop {
+  outline: 2px solid var(--signal); outline-offset: 2px; border-radius: 999px;
 }
 
 /* === Status strip ========================================================
@@ -892,6 +938,12 @@ tr:hover .btn-del-row { opacity: 1; }
   .topbar { padding: 14px 0 12px; margin-bottom: 18px; }
   .brand { gap: 2px; flex-direction: column; align-items: flex-start; }
   .brand-title { font-size: .8rem; letter-spacing: .18em; }
+  /* Tighter beside the wordmark; the knob keeps its label, which is the part
+     that names the mode. */
+  .theme-switch { gap: 6px; }
+  .theme-stop, .theme-knob { font-size: .6rem; letter-spacing: 0; }
+  .theme-track { grid-template-columns: repeat(3, 30px); }
+  .theme-stop { padding: 5px 4px; }
   .lede { font-size: 1.12rem; max-width: none; }
   .card-body { padding: 14px; }
   .analysis-cat-group { grid-template-columns: 1fr; gap: 4px; }

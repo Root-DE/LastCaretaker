@@ -18,6 +18,7 @@
   <div id="summary"></div>
   <script src="inventory-storage.js"></script>
   <script src="profession-model.js"></script>
+  <script src="theme-mode.js"></script>
   <script>
     // Minimal test framework
     let passed = 0, failed = 0;
@@ -475,6 +476,36 @@
       const c6 = clampMaxCounts([{ stats: [5,0,0,0,0,0,0,0,0,0,0,0,0,0,0] }], targetReqs, [9999]);
       assertEqual(c6[0], 9999, 'clamp: irrelevant item count unchanged');
     })();
+
+    // ─── Theme mode (theme-mode.js) ───────────────────────────────────────────
+    {
+      const env = (d, l, h) => ({ prefersDark: d, prefersLight: l, hour: h });
+
+      section('Theme mode — an explicit choice always wins');
+      assertEqual(resolveTheme('dark', env(false, true, 12)), 'dark', 'dark ignores a light system');
+      assertEqual(resolveTheme('light', env(true, false, 2)), 'light', 'light ignores a dark system');
+
+      section('Theme mode — auto follows the system when it states a preference');
+      assertEqual(resolveTheme('auto', env(true, false, 12)), 'dark', 'system dark wins over midday');
+      assertEqual(resolveTheme('auto', env(false, true, 2)), 'light', 'system light wins over the small hours');
+
+      section('Theme mode — auto falls back to local time when the system is silent');
+      assertEqual(resolveTheme('auto', env(false, false, 12)), 'light', 'midday is light');
+      assertEqual(resolveTheme('auto', env(false, false, 7)), 'light', 'the day starts at 07:00');
+      assertEqual(resolveTheme('auto', env(false, false, 18)), 'light', '18:00 is still light');
+      assertEqual(resolveTheme('auto', env(false, false, 19)), 'dark', 'the evening starts at 19:00');
+      assertEqual(resolveTheme('auto', env(false, false, 23)), 'dark', 'late evening is dark');
+      assertEqual(resolveTheme('auto', env(false, false, 3)), 'dark', 'the small hours are dark');
+      assertEqual(resolveTheme('auto', env(false, false, 0)), 'dark', 'midnight is dark');
+
+      section('Theme mode — a stored setting is validated, not trusted');
+      assertEqual(readThemeMode('dark'), 'dark', 'a valid mode is kept');
+      assertEqual(readThemeMode('light'), 'light', 'a valid mode is kept');
+      assertEqual(readThemeMode('auto'), 'auto', 'auto is kept');
+      assertEqual(readThemeMode(null), 'auto', 'nothing stored means auto');
+      assertEqual(readThemeMode('sepia'), 'auto', 'an unknown value falls back to auto');
+      assertEqual(THEME_MODES.join(','), 'dark,auto,light', 'the switch reads dark, auto, light');
+    }
 
     // ─── Profession tiers (profession-model.js) ───────────────────────────────
     // Sources disagree on how the game picks among several matching professions,
