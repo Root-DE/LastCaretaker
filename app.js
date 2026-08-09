@@ -375,8 +375,9 @@ function saveInventory() {
     const index = parseInt(inp.dataset.index);
     const list = kind === 'food' ? foods : memories;
     const name = list[index] ? list[index].name : '';
-    const count = inp.value === '' ? (unlimited ? '' : '0') : inp.value;
-    csv += `${csvQuote(name)};${kind};${count}\n`;
+    // Blank exports as blank in both modes: it means unlimited for that item,
+    // and writing 0 here would turn a Save/Load round trip into an exclusion.
+    csv += `${csvQuote(name)};${kind};${inp.value}\n`;
   });
   csv += `_unlimited;setting;${unlimited}\n`;
   downloadBlob(csv, 'inventory.csv');
@@ -396,7 +397,7 @@ function loadInventory(silent) {
       const state = migrateInventoryData(JSON.parse(raw));
       if (state.unlimited !== null) {
         document.getElementById('unlimited-check').checked = state.unlimited;
-        toggleUnlimited();
+        toggleUnlimited(false);
       }
       document.querySelectorAll('.inv-item-input').forEach(inp => {
         const list = inp.dataset.kind === 'food' ? foods : memories;
@@ -439,7 +440,7 @@ function handleInvCSVUpload(file) {
     });
     if (unlimitedVal !== null) {
       document.getElementById('unlimited-check').checked = unlimitedVal;
-      toggleUnlimited();
+      toggleUnlimited(false);
     }
     document.querySelectorAll('.inv-item-input').forEach(inp => {
       const kind = inp.dataset.kind;
@@ -464,18 +465,24 @@ function flashButton(id) {
   setTimeout(() => { btn.style.background = ''; btn.style.color = ''; }, 600);
 }
 
+// Clears every count back to blank (= unlimited for that item) without changing
+// the mode, so "unlimited except the few things I don't have" is a Reset plus a
+// couple of zeroes rather than filling in every field by hand.
 function resetInventory() {
-  document.getElementById('unlimited-check').checked = true;
-  toggleUnlimited();
   document.querySelectorAll('.inv-item-input').forEach(inp => { inp.value = ''; });
   persistInventory();
   showToast('Inventory reset');
 }
 
-function toggleUnlimited() {
+// `fillBlanks` seeds empty fields with 0 when switching to limited mode, so the
+// user starts from "I have nothing" and fills in what they own. That is a
+// convenience for a real click only — restoring saved state must pass false, or
+// a field deliberately left blank (= unlimited for that item) would come back
+// as 0 and silently drop the item from every search.
+function toggleUnlimited(fillBlanks) {
   const checked = document.getElementById('unlimited-check').checked;
   document.getElementById('inventory-limited').classList.toggle('hidden', checked);
-  if (!checked) {
+  if (!checked && fillBlanks) {
     document.querySelectorAll('.inv-item-input').forEach(inp => {
       if (inp.value === '') inp.value = '0';
     });
@@ -1620,8 +1627,7 @@ function applySolution() {
     if (idx < 0) continue;
     const inp = document.querySelector(`.inv-item-input[data-kind="${datakind}"][data-index="${idx}"]`);
     if (!inp) continue;
-    const cur = parseInt(inp.value) || 0;
-    inp.value = String(Math.max(0, cur - c.count));
+    inp.value = subtractFromStock(inp.value, c.count);
   }
 
   document.getElementById('apply-solution-wrap').classList.add('hidden');
@@ -1696,7 +1702,7 @@ async function init() {
   document.getElementById('cancel-btn').addEventListener('click', cancelSolve);
   document.getElementById('pause-btn').addEventListener('click', togglePause);
   document.getElementById('unlimited-check').addEventListener('change', () => {
-    toggleUnlimited();
+    toggleUnlimited(true); // real click: seed empty fields with 0
     persistInventory();
   });
   document.getElementById('save-inv-btn').addEventListener('click', saveInventory);
