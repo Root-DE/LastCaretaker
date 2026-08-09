@@ -8,8 +8,26 @@
    the status strip, orange as the brand signal against phosphor green for
    system state) are aligned with the official game site so the tool reads as
    a companion to it. Nothing of theirs is bundled: no logo or wordmark, no
-   artwork, and no Stratum2 — the display face here is the reader's own mono.
+   artwork, and not Stratum2, their licensed display face — this page uses
+   Saira, an open (OFL) squarish grotesque in the same family of shapes.
    ========================================================================= */
+
+/* === Type ================================================================
+   Saira, self-hosted: a squarish grotesque in the same family of shapes as the
+   game's own display face, under the SIL Open Font License (see fonts/OFL.txt).
+   One variable file covers 400–700, and it is served from this origin, so the
+   page makes no third-party request to render text. */
+@font-face {
+  font-family: 'Saira';
+  src: url('fonts/saira-latin-var.woff2') format('woff2-variations'),
+       url('fonts/saira-latin-var.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+                 U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC,
+                 U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
 
 /* === Reset === */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -28,12 +46,12 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin
   --line-strong: #33454f;
 
   --ink:         #d2d6db;
-  --ink-dim:     #7a848a;
-  --ink-faint:   #5b666d;
+  --ink-dim:     #8d979d;   /* 6.2:1 on surface */
+  --ink-faint:   #78838a;   /* 4.8:1 — carries 12px labels, must clear 4.5 */
   --ink-bright:  #f2f5f7;
 
   --signal:      #ff5200;   /* brand: target and the primary action    */
-  --signal-ink:  #fff4ee;   /* text on a signal fill                   */
+  --signal-ink:  #190a02;   /* dark ink on the orange fill: 5.8:1      */
   --affirm:      #00eb96;   /* system nominal: requirement met         */
   --caution:     #ff9db0;   /* anomaly: an avoidable profession matched */
   --danger:      #ff6b6b;
@@ -59,8 +77,13 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin
   --cat-leadership:  #f0c74e;
   --cat-explorer:    #c39bff;
 
-  --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, 'Cascadia Mono', 'SF Mono', 'Segoe UI Mono', Menlo, Consolas, monospace;
+  /* Saira is a display face: strong in short uppercase strings, tiring in
+     running text and in dense tables. It is scoped to titles and eyebrows;
+     everything readable falls to the system UI stack, which is what these
+     platforms hint and render best at small sizes. */
+  --font-display: 'Saira', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, 'Cascadia Mono', 'SF Mono', 'Segoe UI Mono', Menlo, Consolas, monospace;
 
   --r:    2px;
   --r-lg: 2px;
@@ -80,18 +103,18 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin
     --line-strong: #9aa6ad;
 
     --ink:         #1b2429;
-    --ink-dim:     #5c686f;
-    --ink-faint:   #7d888e;
+    --ink-dim:     #4a565d;   /* 7.0:1 on surface */
+    --ink-faint:   #5d686e;   /* 4.8:1 even on the page ground, not just cards */
     --ink-bright:  #080e12;
 
-    --signal:      #c23c00;
+    --signal:      #b03700;
     --signal-ink:  #fff4ee;
     --affirm:      #00694a;
     --caution:     #a8305a;
     --danger:      #b3312a;
 
-    --signal-wash: rgba(194,60,0,.09);
-    --signal-edge: rgba(194,60,0,.32);
+    --signal-wash: rgba(176,55,0,.09);
+    --signal-edge: rgba(176,55,0,.32);
     --affirm-wash: rgba(0,105,74,.09);
     --affirm-edge: rgba(0,105,74,.26);
     --caution-wash:rgba(168,48,90,.08);
@@ -125,18 +148,18 @@ input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin
   --line-strong: #9aa6ad;
 
   --ink:         #1b2429;
-  --ink-dim:     #5c686f;
-  --ink-faint:   #7d888e;
+  --ink-dim:     #4a565d;   /* 7.0:1 on surface */
+  --ink-faint:   #5d686e;   /* 4.8:1 even on the page ground, not just cards */
   --ink-bright:  #080e12;
 
-  --signal:      #c23c00;
+  --signal:      #b03700;
   --signal-ink:  #fff4ee;
   --affirm:      #00694a;
   --caution:     #a8305a;
   --danger:      #b3312a;
 
-  --signal-wash: rgba(194,60,0,.09);
-  --signal-edge: rgba(194,60,0,.32);
+  --signal-wash: rgba(176,55,0,.09);
+  --signal-edge: rgba(176,55,0,.32);
   --affirm-wash: rgba(0,105,74,.09);
   --affirm-edge: rgba(0,105,74,.26);
   --caution-wash:rgba(168,48,90,.08);
@@ -181,14 +204,21 @@ a:hover { text-decoration: underline; }
   border-radius: 2px;
 }
 
-/* Anything measured is set in mono with aligned figures. */
+/* Three roles. Display for titles and eyebrows — short strings only. Mono for
+   readings: anything the solver measured or counted. Everything else is the
+   system sans, because it is the only one of the three that stays comfortable
+   in a 48-row table. */
+.brand-title, .lede, .card-header h2, .analysis-panel h4,
+.result-section-title, .inv-section-title, .run-bar-label,
+.section-label, .btn, .tab-btn, .eco-seg {
+  font-family: var(--font-display);
+}
+
 .mono, .num,
-.card-header h2, .btn, .tab-btn, .eco-seg,
-.req-chip, .analysis-tag, .analysis-cat-header, .analysis-label,
 .stats-table, .progress-stats, .search-time, .sol-nav-label,
 .result-badge, .side-effect-tag, .prof-tag, .inv-item-input,
 .recipe-item-count, .recipe-item-pct, .edit-table, .footer-version,
-.section-label, .brand-title, .req-chip-val {
+.req-chip-val, .status-strip, .progress-best {
   font-family: var(--font-mono);
 }
 
@@ -199,7 +229,7 @@ a:hover { text-decoration: underline; }
 
 /* Section label: a hairline eyebrow used wherever content needs naming. */
 .section-label {
-  font-size: .66rem; text-transform: uppercase; letter-spacing: .16em;
+  font-size: .75rem; text-transform: uppercase; letter-spacing: .16em;
   color: var(--ink-faint); font-weight: 600;
   display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
 }
@@ -242,7 +272,7 @@ a:hover { text-decoration: underline; }
    the readings are this app's. */
 .status-strip {
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px;
-  font-family: var(--font-mono); font-size: .66rem;
+  font-family: var(--font-mono); font-size: .72rem;
   text-transform: uppercase; letter-spacing: .12em;
   color: var(--ink-faint); padding: 9px 0; border-bottom: var(--rule);
   margin-bottom: 22px;
@@ -265,7 +295,7 @@ a:hover { text-decoration: underline; }
 }
 .lede em { color: var(--signal); font-style: normal; white-space: nowrap; }
 .lede-game { white-space: nowrap; }
-.lede-sub { font-size: .86rem; color: var(--ink-dim); max-width: 62ch; margin-bottom: 22px; }
+.lede-sub { font-size: .95rem; line-height: 1.6; color: var(--ink-dim); max-width: 62ch; margin-bottom: 22px; }
 
 /* === Cards =============================================================== */
 .card {
@@ -278,7 +308,7 @@ a:hover { text-decoration: underline; }
   padding: 12px 18px; border-bottom: var(--rule); background: var(--surface-2);
 }
 .card-header h2 {
-  font-size: .7rem; font-weight: 700; color: var(--ink);
+  font-size: .75rem; font-weight: 700; color: var(--ink);
   text-transform: uppercase; letter-spacing: .16em;
 }
 .card-body { padding: 18px; }
@@ -291,14 +321,14 @@ a:hover { text-decoration: underline; }
 }
 .card-toggle:hover { background: var(--surface-3); }
 .card-toggle.open { border-bottom-color: var(--line); }
-.toggle-icon { font-size: .62rem; color: var(--ink-faint); transition: transform .2s; }
+.toggle-icon { font-size: .72rem; color: var(--ink-dim); transition: transform .2s; }
 .card-toggle.open .toggle-icon { transform: rotate(90deg); }
 
 /* === Profession combobox ================================================= */
 .prof-combo { position: relative; }
 .prof-combo-input {
   width: 100%; padding: 13px 42px 13px 15px;
-  font-family: var(--font-mono); font-size: 1rem; letter-spacing: .01em;
+  font-size: 1rem; letter-spacing: .01em;
   background: var(--bg); color: var(--ink-bright);
   border: 1px solid var(--line-strong); border-radius: var(--r);
   cursor: pointer; transition: border-color .15s, box-shadow .15s;
@@ -332,8 +362,8 @@ a:hover { text-decoration: underline; }
 }
 .prof-combo-group + .prof-combo-group { border-top: var(--rule); }
 .prof-combo-grouplabel {
-  padding: 9px 15px 4px; font-family: var(--font-mono);
-  font-size: .64rem; text-transform: uppercase; letter-spacing: .16em;
+  padding: 10px 15px 5px;
+  font-size: .72rem; text-transform: uppercase; letter-spacing: .16em;
   color: var(--ink-faint); font-weight: 700;
 }
 .prof-combo-option {
@@ -350,10 +380,10 @@ a:hover { text-decoration: underline; }
 /* === Requirements ======================================================== */
 .requirements-panel { margin-top: 22px; }
 .req-title {
-  font-family: var(--font-mono); font-size: 1.02rem; color: var(--ink-bright);
+  font-size: 1.02rem; color: var(--ink-bright);
   margin-bottom: 3px; letter-spacing: .01em;
 }
-.req-hint { font-size: .78rem; color: var(--ink-dim); margin-bottom: 14px; }
+.req-hint { font-size: .84rem; color: var(--ink-dim); margin-bottom: 14px; }
 .req-grid { display: flex; flex-wrap: wrap; gap: 6px; }
 .req-chip {
   display: flex; align-items: center; gap: 0;
@@ -361,8 +391,8 @@ a:hover { text-decoration: underline; }
   border-radius: var(--r); overflow: hidden; font-size: .8rem;
 }
 .req-chip-name {
-  color: var(--ink-dim); padding: 5px 9px; text-transform: uppercase;
-  font-size: .68rem; letter-spacing: .1em;
+  color: var(--ink-dim); padding: 6px 10px; text-transform: uppercase;
+  font-size: .74rem; letter-spacing: .06em;
 }
 .req-chip-val {
   width: 56px; padding: 5px 8px; text-align: right;
@@ -375,29 +405,29 @@ a:hover { text-decoration: underline; }
 /* === The board: profession taxonomy ====================================== */
 .analysis-panel { margin-top: 22px; }
 .analysis-panel h4 {
-  font-family: var(--font-mono); font-size: .66rem; text-transform: uppercase;
+  font-size: .75rem; text-transform: uppercase;
   letter-spacing: .16em; color: var(--ink-faint); font-weight: 700; margin-bottom: 12px;
 }
 .analysis-section { margin-bottom: 16px; }
 .analysis-label {
-  font-size: .68rem; color: var(--ink-dim); margin-bottom: 8px;
+  font-size: .75rem; color: var(--ink-dim); margin-bottom: 8px;
   text-transform: uppercase; letter-spacing: .12em;
 }
 .analysis-grouped { display: flex; flex-direction: column; gap: 1px; background: var(--line); border: var(--rule); border-radius: var(--r); overflow: hidden; }
 .analysis-cat-group {
-  display: grid; grid-template-columns: 104px 1fr; gap: 10px;
+  display: grid; grid-template-columns: 124px 1fr; gap: 10px;
   align-items: start; background: var(--surface); padding: 7px 10px;
 }
 /* Category names are muted on purpose: colour is reserved for state (target /
    always matched / matched now), so the board reads at a glance instead of
    presenting ten competing hues. Position carries the category. */
 .analysis-cat-group .analysis-cat-header {
-  font-size: .64rem; font-weight: 700; text-transform: uppercase;
+  font-size: .72rem; font-weight: 700; text-transform: uppercase;
   letter-spacing: .1em; padding-top: 3px; color: var(--ink-faint);
 }
 .analysis-cat-items { display: flex; flex-wrap: wrap; gap: 4px; }
 .analysis-tag {
-  font-size: .7rem; padding: 2px 7px; border-radius: 2px;
+  font-size: .8rem; padding: 3px 8px; border-radius: 2px;
   border: 1px solid transparent; white-space: nowrap;
   transition: background .18s ease, border-color .18s ease, color .18s ease;
 }
@@ -417,8 +447,8 @@ a:hover { text-decoration: underline; }
   border-color: var(--signal); font-weight: 700;
 }
 .board-legend {
-  display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px;
-  font-family: var(--font-mono); font-size: .66rem; color: var(--ink-faint);
+  display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px;
+  font-family: var(--font-mono); font-size: .72rem; color: var(--ink-faint);
   text-transform: uppercase; letter-spacing: .1em;
 }
 .board-legend span { display: inline-flex; align-items: center; gap: 6px; }
@@ -430,12 +460,12 @@ a:hover { text-decoration: underline; }
 
 /* === Notes & info ======================================================== */
 .info-box {
-  font-size: .8rem; color: var(--ink-dim); line-height: 1.55;
+  font-size: .88rem; color: var(--ink-dim); line-height: 1.55;
   border-left: 2px solid var(--line-strong); padding: 2px 0 2px 14px; margin-bottom: 16px;
 }
 .info-box strong { color: var(--ink); font-weight: 600; }
 .analysis-note {
-  font-size: .76rem; color: var(--ink-dim); line-height: 1.5;
+  font-size: .84rem; color: var(--ink-dim); line-height: 1.5;
   margin-top: 8px; padding: 2px 0 2px 12px;
   border-left: 2px solid var(--line-strong);
 }
@@ -451,13 +481,13 @@ a:hover { text-decoration: underline; }
   display: flex; align-items: center; justify-content: space-between;
   flex-wrap: wrap; gap: 10px; margin-bottom: 16px;
 }
-.checkbox-label { display: flex; align-items: center; gap: 9px; cursor: pointer; font-size: .86rem; }
+.checkbox-label { display: flex; align-items: center; gap: 9px; cursor: pointer; font-size: .9rem; }
 .checkbox-label input[type=checkbox] { accent-color: var(--signal); width: 15px; height: 15px; }
 .toolbar-actions { display: flex; gap: 6px; }
 
 .inventory-section { margin-bottom: 20px; }
 .inv-section-title {
-  font-family: var(--font-mono); font-size: .66rem; color: var(--ink-faint);
+  font-size: .75rem; color: var(--ink-faint);
   text-transform: uppercase; letter-spacing: .16em; margin-bottom: 10px; font-weight: 700;
 }
 .inventory-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
@@ -476,7 +506,7 @@ a:hover { text-decoration: underline; }
   background: var(--surface-3); display: flex; align-items: center;
   justify-content: center; font-size: 1rem; color: var(--ink-faint); margin-bottom: 5px;
 }
-.inv-item-name { font-size: .68rem; color: var(--ink-dim); margin-bottom: 6px; line-height: 1.25; min-height: 2.5em; }
+.inv-item-name { font-size: .78rem; color: var(--ink-dim); margin-bottom: 6px; line-height: 1.25; min-height: 2.5em; }
 .inv-item-input {
   width: 100%; padding: 4px 6px; text-align: center;
   background: var(--bg); border: var(--rule);
@@ -490,7 +520,7 @@ a:hover { text-decoration: underline; }
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   margin-top: 16px; padding-top: 14px; border-top: var(--rule);
 }
-.download-label { font-size: .78rem; color: var(--ink-dim); }
+.download-label { font-size: .84rem; color: var(--ink-dim); }
 .upload-label { cursor: pointer; }
 .file-hidden {
   position: absolute; width: 1px; height: 1px; padding: 0;
@@ -506,7 +536,7 @@ a:hover { text-decoration: underline; }
 .edit-toolbar-group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .edit-tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: var(--rule); }
 .tab-btn {
-  padding: 8px 14px; font-size: .72rem; border: none; background: transparent;
+  padding: 9px 14px; font-size: .78rem; border: none; background: transparent;
   color: var(--ink-dim); cursor: pointer; text-transform: uppercase;
   letter-spacing: .1em; font-weight: 700;
   border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color .15s;
@@ -515,48 +545,79 @@ a:hover { text-decoration: underline; }
 .tab-btn.active { color: var(--signal); border-bottom-color: var(--signal); }
 .edit-tab-content { display: none; }
 .edit-tab-content.active { display: block; }
-.table-wrap { overflow-x: auto; }
-.edit-table { width: 100%; border-collapse: collapse; font-size: .76rem; }
+/* The table is a spreadsheet, so it behaves like one: the name column takes
+   the space it needs, numbers sit in fixed right-aligned columns, and the
+   inputs carry no chrome until you interact with them — a grid of outlined
+   boxes reads as noise at this density. It scrolls rather than crushing. */
+.table-wrap { overflow-x: auto; margin: 0 -18px; padding: 0 18px; }
+.edit-table {
+  width: 100%; min-width: 560px; border-collapse: collapse;
+  font-size: .86rem; font-family: var(--font-sans);
+}
 .edit-table th {
-  padding: 7px 8px; text-align: left; font-weight: 700;
-  color: var(--ink-faint); border-bottom: var(--rule);
+  padding: 8px 10px; text-align: right; font-weight: 700;
+  color: var(--ink-faint); border-bottom: 1px solid var(--line-strong);
   white-space: nowrap; position: sticky; top: 0; background: var(--surface);
-  text-transform: uppercase; letter-spacing: .1em; font-size: .64rem;
+  text-transform: uppercase; letter-spacing: .06em; font-size: .72rem;
+  font-family: var(--font-display);
 }
-.edit-table td { padding: 4px 6px; border-bottom: 1px solid var(--line); }
-.edit-table tr:hover td { background: var(--hover); }
-.edit-table td:first-child { color: var(--ink-bright); white-space: nowrap; }
+.edit-table th:first-child { text-align: left; }
+.edit-table th:last-child { width: 40px; }
+.edit-table td { padding: 2px 4px; border-bottom: 1px solid var(--line); }
+.edit-table td:first-child { padding-left: 0; }
+.edit-table tbody tr:hover { background: var(--hover); }
+
 .edit-table input {
-  width: 52px; padding: 3px 5px; text-align: right;
-  background: var(--bg); border: var(--rule);
-  border-radius: 2px; color: var(--ink); font-size: .76rem; font-family: var(--font-mono);
+  width: 100%; padding: 7px 8px; text-align: right;
+  background: transparent; border: 1px solid transparent;
+  border-radius: var(--r); color: var(--ink);
+  font-size: .86rem; font-family: var(--font-mono);
 }
-.edit-name-input { width: 130px !important; text-align: left !important; }
-.edit-cat-input { width: 104px !important; }
-.edit-table input:focus { outline: none; border-color: var(--signal); }
-.edit-table input:focus-visible { outline: 2px solid var(--signal); outline-offset: 1px; }
+.edit-table input::placeholder { color: var(--ink-faint); }
+.edit-table input:hover { border-color: var(--line); }
+.edit-table input:focus {
+  outline: none; border-color: var(--signal);
+  background: var(--bg); color: var(--ink-bright);
+}
+.edit-table input:focus-visible { outline: none; }
+
+/* Names are the reason this table exists — give them the room and the
+   readable face, and let the column stretch instead of clipping. */
+.edit-name-input {
+  text-align: left !important; font-family: var(--font-sans) !important;
+  color: var(--ink-bright); font-weight: 500; min-width: 170px;
+}
+.edit-cat-input { text-align: left !important; font-family: var(--font-sans) !important; min-width: 120px; }
+.edit-table td:has(.edit-name-input) { width: 100%; }
+.edit-table td:has(input[type=number]) { width: 84px; }
 
 .btn-add {
   margin-top: 10px; background: transparent; color: var(--ink-dim);
   border: 1px dashed var(--line-strong); width: 100%;
 }
 .btn-add:hover { border-color: var(--signal); color: var(--signal); background: var(--signal-wash); }
+/* Destructive and repeated 40 times over — kept quiet until the row is under
+   the pointer, but with a real 32px target rather than a 12px glyph. */
 .btn-del-row {
-  background: none; border: none; color: var(--danger); cursor: pointer;
-  font-size: .8rem; padding: 2px 6px; opacity: .55; transition: opacity .15s;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: var(--r);
+  background: none; border: none; color: var(--ink-faint); cursor: pointer;
+  font-size: .85rem; opacity: .5; transition: opacity .15s, color .15s, background .15s;
 }
-.btn-del-row:hover { opacity: 1; }
+tr:hover .btn-del-row { opacity: 1; }
+.btn-del-row:hover { color: var(--danger); background: var(--danger-wash); opacity: 1; }
+.btn-del-row:focus-visible { opacity: 1; color: var(--danger); }
 
 /* === Buttons ============================================================= */
 .btn {
-  padding: 8px 16px; border: var(--rule); background: var(--surface-2);
+  padding: 9px 16px; border: var(--rule); background: var(--surface-2);
   border-radius: var(--r); color: var(--ink);
-  font-size: .74rem; font-weight: 700; cursor: pointer;
-  text-transform: uppercase; letter-spacing: .1em;
+  font-size: .8rem; font-weight: 700; cursor: pointer;
+  text-transform: uppercase; letter-spacing: .06em;
   transition: background .15s, border-color .15s, color .15s;
 }
 .btn:hover { border-color: var(--line-strong); color: var(--ink-bright); }
-.btn-sm { padding: 6px 11px; font-size: .68rem; }
+.btn-sm { padding: 7px 12px; font-size: .74rem; }
 .btn-outline { background: transparent; color: var(--ink-dim); }
 .btn-outline:hover { color: var(--ink-bright); }
 
@@ -569,7 +630,7 @@ a:hover { text-decoration: underline; }
 }
 .run-bar-modes { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .run-bar-label {
-  font-family: var(--font-mono); font-size: .64rem; text-transform: uppercase;
+  font-size: .72rem; text-transform: uppercase;
   letter-spacing: .16em; color: var(--ink-faint); font-weight: 700;
 }
 .solve-container { display: flex; gap: 8px; }
@@ -600,7 +661,7 @@ a:hover { text-decoration: underline; }
   display: inline-flex; align-items: center; gap: 6px;
   padding: 7px 13px; border: none; border-right: var(--rule);
   background: transparent; color: var(--ink-dim);
-  font-size: .68rem; text-transform: uppercase; letter-spacing: .08em; font-weight: 700;
+  font-size: .76rem; text-transform: uppercase; letter-spacing: .05em; font-weight: 700;
   cursor: pointer; user-select: none; white-space: nowrap;
   transition: background .15s, color .15s;
 }
@@ -620,7 +681,7 @@ a:hover { text-decoration: underline; }
 }
 .input-sm:focus { outline: none; border-color: var(--signal); }
 .input-sm:focus-visible { outline: 2px solid var(--signal); outline-offset: 1px; }
-.hint { font-size: .76rem; color: var(--ink-dim); }
+.hint { font-size: .84rem; color: var(--ink-dim); }
 
 /* === Progress ============================================================ */
 .progress-bar-wrap {
@@ -632,7 +693,7 @@ a:hover { text-decoration: underline; }
   transition: width .3s ease;
 }
 .progress-stats {
-  display: flex; gap: 22px; font-size: .72rem; color: var(--ink-dim); flex-wrap: wrap;
+  display: flex; gap: 22px; font-size: .78rem; color: var(--ink-dim); flex-wrap: wrap;
   text-transform: uppercase; letter-spacing: .06em;
 }
 .progress-best { margin-top: 10px; font-size: .82rem; color: var(--signal); min-height: 1.5em; font-family: var(--font-mono); }
@@ -648,7 +709,7 @@ a:hover { text-decoration: underline; }
 .result-summary.no-solution .result-badge { color: var(--danger); }
 .result-section { margin-bottom: 22px; }
 .result-section-title {
-  font-family: var(--font-mono); font-size: .66rem; color: var(--ink-faint);
+  font-size: .75rem; color: var(--ink-faint);
   margin-bottom: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .16em;
 }
 
@@ -666,15 +727,15 @@ a:hover { text-decoration: underline; }
 }
 .recipe-item-count { font-weight: 700; color: var(--signal); font-size: .95rem; }
 .recipe-item-name { font-size: .82rem; color: var(--ink); }
-.recipe-item-pct { font-size: .7rem; color: var(--ink-faint); margin-left: auto; }
+.recipe-item-pct { font-size: .74rem; color: var(--ink-dim); margin-left: auto; }
 
 /* Stats: value, target and verdict sit together, not spread across the row. */
 .stats-table { width: 100%; font-size: .82rem; border-collapse: collapse; }
 .stats-table td { padding: 5px 0; border-bottom: 1px solid var(--line); }
 .stats-table tr:last-child td { border-bottom: none; }
 .stats-table .stat-name {
-  color: var(--ink-dim); text-transform: uppercase; letter-spacing: .08em;
-  font-size: .68rem; width: 40%;
+  color: var(--ink-dim); text-transform: uppercase; letter-spacing: .06em;
+  font-size: .76rem; width: 40%;
 }
 .stats-table .stat-val { font-weight: 700; text-align: right; width: 68px; }
 .stats-table .stat-target { color: var(--ink-faint); padding-left: 8px; width: 68px; }
@@ -687,7 +748,7 @@ a:hover { text-decoration: underline; }
 /* Side effects are information, not a warning — kept neutral so the only
    alarm-coloured thing on the page is an avoidable profession that got matched. */
 .side-effect-tag {
-  font-size: .7rem; padding: 3px 8px; border-radius: 2px;
+  font-size: .78rem; padding: 3px 8px; border-radius: 2px;
   background: var(--surface-2); color: var(--ink-dim); border: var(--rule);
 }
 
@@ -702,11 +763,11 @@ a:hover { text-decoration: underline; }
 .prof-dot.inherent { background: var(--affirm); }
 .prof-dot.avoidable { background: var(--caution); }
 .prof-name { color: var(--ink); }
-.prof-tag { font-size: .66rem; color: var(--ink-faint); margin-left: 4px; text-transform: uppercase; letter-spacing: .08em; }
+.prof-tag { font-size: .72rem; color: var(--ink-faint); margin-left: 4px; text-transform: uppercase; letter-spacing: .08em; }
 
 .search-time {
   margin-top: 20px; padding-top: 14px; border-top: var(--rule);
-  font-size: .7rem; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .08em;
+  font-size: .76rem; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .08em;
 }
 
 /* === Solution nav ======================================================== */
@@ -725,7 +786,7 @@ a:hover { text-decoration: underline; }
 .avoidable-toggle {
   display: flex; align-items: center; gap: 6px;
   background: none; border: none; color: var(--caution);
-  font-family: var(--font-mono); font-size: .7rem; cursor: pointer; padding: 8px 0 4px;
+  font-size: .7rem; cursor: pointer; padding: 8px 0 4px;
   font-weight: 700; text-transform: uppercase; letter-spacing: .1em;
 }
 .avoidable-toggle:hover { color: var(--signal); }
@@ -738,11 +799,11 @@ a:hover { text-decoration: underline; }
 /* === Footer ============================================================== */
 .footer {
   margin-top: 42px; padding-top: 20px; border-top: var(--rule);
-  font-size: .76rem; color: var(--ink-dim);
+  font-size: .84rem; color: var(--ink-dim);
 }
 .footer p { margin-bottom: 5px; }
-.footer-note { font-size: .72rem; color: var(--ink-faint); }
-.footer-version { font-size: .66rem; color: var(--ink-faint); margin-top: 8px; }
+.footer-note { font-size: .78rem; color: var(--ink-faint); }
+.footer-version { font-size: .74rem; color: var(--ink-faint); margin-top: 8px; }
 .footer-version a { color: var(--ink-faint); }
 .footer-version a:hover { color: var(--ink-dim); }
 
