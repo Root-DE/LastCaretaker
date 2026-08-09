@@ -1750,24 +1750,82 @@ function idleStatus() {
 // An explicit choice is stored and wins; with nothing stored the page follows
 // the OS via prefers-color-scheme (the inline script in index.html applies any
 // stored value before first paint, so there is no flash of the wrong theme).
-function currentTheme() {
-  const set = document.documentElement.getAttribute('data-theme');
-  if (set === 'light' || set === 'dark') return set;
-  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+function themeEnv() {
+  return {
+    prefersDark: window.matchMedia('(prefers-color-scheme: dark)').matches,
+    prefersLight: window.matchMedia('(prefers-color-scheme: light)').matches,
+    hour: new Date().getHours(),
+  };
 }
 
-function setTheme(theme) {
-  document.documentElement.setAttribute('data-theme', theme);
-  const btn = document.getElementById('theme-toggle');
-  if (btn) btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme');
-  try { localStorage.setItem('tlc_theme', theme); } catch (e) { /* storage blocked */ }
+function storedThemeMode() {
+  let raw = null;
+  try { raw = localStorage.getItem('tlc_theme'); } catch (e) { /* storage blocked */ }
+  return readThemeMode(raw);
+}
+
+// Applies a mode: paints the resolved theme, moves the knob to the chosen mode
+// and lights the end icon for the theme actually in force. Those two differ
+// under Auto, which is the whole point of showing both.
+function applyThemeMode(mode) {
+  const root = document.documentElement;
+  // Both attributes also get set in the document head before first paint, so
+  // the knob starts where it belongs instead of sliding over from Auto.
+  root.setAttribute('data-theme-mode', mode);                     // knob position + label
+  root.setAttribute('data-theme', resolveTheme(mode, themeEnv())); // palette + lit icon
+  const radio = document.getElementById('theme-' + mode);
+  if (radio) radio.checked = true;
+}
+
+function setThemeMode(mode) {
+  try { localStorage.setItem('tlc_theme', mode); } catch (e) { /* storage blocked */ }
+  applyThemeMode(mode);
+}
+
+// Drag or swipe the knob along the track.
+function initThemeDrag() {
+  const track = document.querySelector('.theme-track');
+  if (!track || !window.PointerEvent) return;
+
+  const modeAt = (clientX) => {
+    const r = track.getBoundingClientRect();
+    const x = Math.min(Math.max(clientX - r.left, 0), r.width) / r.width;
+    // knob centres sit at 25%, 50% and 75%, so snap on the midpoints between
+    return x < 0.375 ? 'dark' : x < 0.625 ? 'auto' : 'light';
+  };
+  let dragging = false;
+  const to = (e) => {
+    const mode = modeAt(e.clientX);
+    if (mode !== storedThemeMode()) setThemeMode(mode);
+  };
+
+  track.addEventListener('pointerdown', (e) => {
+    dragging = true;
+    track.setPointerCapture(e.pointerId);
+    to(e);
+    e.preventDefault(); // no text selection, no synthetic label click on top
+  });
+  track.addEventListener('pointermove', (e) => { if (dragging) to(e); });
+  const end = (e) => { if (dragging) { dragging = false; to(e); } };
+  track.addEventListener('pointerup', end);
+  track.addEventListener('pointercancel', () => { dragging = false; });
 }
 
 function initTheme() {
-  const btn = document.getElementById('theme-toggle');
-  if (!btn) return;
-  btn.setAttribute('aria-label', currentTheme() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme');
-  btn.addEventListener('click', () => setTheme(currentTheme() === 'dark' ? 'light' : 'dark'));
+  applyThemeMode(storedThemeMode());
+  document.querySelectorAll('.theme-radio').forEach(radio => {
+    radio.addEventListener('change', () => { if (radio.checked) setThemeMode(radio.value); });
+  });
+  // The end icons are shortcuts to their mode.
+  document.querySelectorAll('.theme-icon[data-mode]').forEach(btn => {
+    btn.addEventListener('click', () => setThemeMode(btn.dataset.mode));
+  });
+  initThemeDrag();
+  // On auto, track the system flipping while the page is open.
+  const dark = window.matchMedia('(prefers-color-scheme: dark)');
+  const onChange = () => { if (storedThemeMode() === 'auto') applyThemeMode('auto'); };
+  if (dark.addEventListener) dark.addEventListener('change', onChange);
+  else if (dark.addListener) dark.addListener(onChange);
 }
 
 // ─── Toggle Helpers ──────────────────────────────────────────────────────────
