@@ -110,7 +110,6 @@
       s[8]  = parseFloat(row['Discipline']) || 0;
       s[9]  = parseFloat(row['Empathy']) || 0;
       s[10] = parseFloat(row['Focus']) || 0;
-      s[4]  = parseFloat(row['Intellect']) || 0;
       s[11] = parseFloat(row['Leadership']) || 0;
       s[12] = parseFloat(row['Logic']) || 0;
       s[13] = parseFloat(row['Patience']) || 0;
@@ -238,7 +237,7 @@
     section('memoryStats mapping');
     (function() {
       const row = { Adaptability: '2', Communication: '3', Creativity: '1',
-                    Discipline: '4', Empathy: '5', Focus: '6', Intellect: '7',
+                    Discipline: '4', Empathy: '5', Focus: '6',
                     Leadership: '8', Logic: '9', Patience: '10', Wisdom: '11' };
       const s = memoryStats(row);
       assertEqual(s[0], 0, 'weight is 0 for memories');
@@ -246,16 +245,15 @@
       assertEqual(s[7], 3, 'communication mapped');
       assertEqual(s[6], 1, 'creativity mapped');
       assertEqual(s[8], 4, 'discipline mapped');
-      assertEqual(s[4], 7, 'intellect mapped');
       assertEqual(s[14], 11, 'wisdom mapped');
     })();
 
     section('PECO Athletics memories');
     (function() {
-      const csv = 'Memory;Adaptability;Communication;Creativity;Discipline;Empathy;Focus;Intellect;Leadership;Logic;Patience;Wisdom;WorldCount\n'
-        + 'PECO Athletics - 100m Dash;20;;25;;;25;;;;20;;30\n'
-        + 'PECO Athletics - Javelin;20;;25;;;25;;;;20;;30\n'
-        + 'PECO Athletics - Triple Jump;20;;25;;;25;;;;20;;30\n';
+      const csv = 'Memory;Adaptability;Communication;Creativity;Discipline;Empathy;Focus;Leadership;Logic;Patience;Wisdom;WorldCount\n'
+        + 'PECO Athletics - 100m Dash;20;;25;;;25;;;20;;30\n'
+        + 'PECO Athletics - Javelin;20;;25;;;25;;;20;;30\n'
+        + 'PECO Athletics - Triple Jump;20;;25;;;25;;;20;;30\n';
       const parsed = parseCSV(csv);
       assertEqual(parsed.rows.length, 3, 'all 3 PECO memories parsed');
       parsed.rows.forEach((row) => {
@@ -275,8 +273,8 @@
 
     section('Porcine Vocal Interface memory');
     (function() {
-      const csv = 'Memory;Adaptability;Communication;Creativity;Discipline;Empathy;Focus;Intellect;Leadership;Logic;Patience;Wisdom;WorldCount\n'
-        + 'Porcine Vocal Interface;;100;50;;50;;;;;;;10\n';
+      const csv = 'Memory;Adaptability;Communication;Creativity;Discipline;Empathy;Focus;Leadership;Logic;Patience;Wisdom;WorldCount\n'
+        + 'Porcine Vocal Interface;;100;50;;50;;;;;;10\n';
       const parsed = parseCSV(csv);
       assertEqual(parsed.rows.length, 1, 'Porcine Vocal Interface parsed');
       const row = parsed.rows[0];
@@ -297,12 +295,11 @@
     section('humanStats mapping');
     (function() {
       const row = { Weight: '10', Height: '20', 'Life Exp.': '30', Strength: '40',
-                    Intellect: '50', Adaptability: '1', Creativity: '2',
+                    Adaptability: '1', Creativity: '2',
                     Communication: '3', Disipline: '4', Empathy: '5', Focus: '6',
                     Leadership: '7', Logic: '8', Patience: '9', Wisdom: '0' };
       const s = humanStats(row);
       assertEqual(s[0], 10, 'weight');
-      assertEqual(s[4], 50, 'intellect');
       assertEqual(s[8], 4, 'disipline (typo in game)');
       assertEqual(s[14], 0, 'wisdom=0');
     })();
@@ -351,7 +348,7 @@
 
     section('Ash Notebook stat update');
     (function() {
-      const csv = 'Memory;Adaptability;Communication;Creativity;Discipline;Empathy;Focus;Intellect;Leadership;Logic;Patience;Wisdom\nAsh Notebook;100;100;100;100;100;100;100;100;100;100;100\n';
+      const csv = 'Memory;Adaptability;Communication;Creativity;Discipline;Empathy;Focus;Leadership;Logic;Patience;Wisdom\nAsh Notebook;100;100;100;100;100;100;100;100;100;100\n';
       const parsed = parseCSV(csv);
       const s = memoryStats(parsed.rows[0]);
       assertEqual(s[12], 100, 'Ash Notebook logic is 100 (updated from 10)');
@@ -360,7 +357,7 @@
 
     section('Teddy Bear memory \u2014 same empathy as Tommy (empathy=3)');
     (function() {
-      const csv = 'Memory;Adaptability;Communication;Creativity;Discipline;Empathy;Focus;Intellect;Leadership;Logic;Patience;Wisdom;WordCount\nTeddy Bear;;;;;3;;;;;;;17\n';
+      const csv = 'Memory;Adaptability;Communication;Creativity;Discipline;Empathy;Focus;Leadership;Logic;Patience;Wisdom;WordCount\nTeddy Bear;;;;;3;;;;;;17\n';
       const parsed = parseCSV(csv);
       const s = memoryStats(parsed.rows[0]);
       assertEqual(s[9], 3, 'Teddy Bear empathy is 3');
@@ -643,6 +640,25 @@
 
     asyncBegin();
     (function() {
+      // Intellect comes from food. No memory has ever granted it, so the column
+      // was dropped rather than kept as a permanently empty one.
+      const label = 'Memory dataset — no intellect column';
+      fetch('data/memories.csv')
+        .then(r => r.text())
+        .then(text => {
+          section(label);
+          const parsed = parseCSV(text);
+          assert(parsed.headers.indexOf('Intellect') === -1, 'memories.csv has no Intellect column');
+          assertEqual(memoryStats({ Intellect: '42', Focus: '5' })[4], 0,
+                      'memoryStats ignores an Intellect column if one is present');
+          assertEqual(memoryStats({ Intellect: '42', Focus: '5' })[10], 5, 'other stats still map');
+        })
+        .catch(err => { section(label); assert(false, 'failed to load memories.csv: ' + err.message); })
+        .finally(() => asyncEnd());
+    })();
+
+    asyncBegin();
+    (function() {
       // The cartridge memories all share one stat block. Asserted against the
       // shipped CSV rather than a literal so a dropped or mistyped row fails here.
       const CARTRIDGES = [
@@ -690,7 +706,7 @@
           const row = parseCSV(text).rows.find(r => r['Memory'] === 'Oath Token');
           if (!row) { assert(false, 'Oath Token is present in memories.csv'); return; }
           MENTAL.forEach(stat => assertEqual(row[stat], '50', 'Oath Token ' + stat.toLowerCase()));
-          assertEqual(row['Intellect'], '', 'Oath Token grants no intellect');
+          assertEqual(row['Intellect'], undefined, 'no intellect column to grant');
           assert(parseInt(row['WorldCount'], 10) > 0, 'Oath Token has a world count');
         })
         .catch(err => { section(label); assert(false, 'failed to load memories.csv: ' + err.message); })
@@ -1308,11 +1324,11 @@
     (function() {
       const row = {
         Adaptability: '1', Communication: '2', Creativity: '3', Discipline: '4',
-        Empathy: '5', Focus: '6', Intellect: '7', Leadership: '8',
+        Empathy: '5', Focus: '6', Leadership: '8',
         Logic: '9', Patience: '10', Wisdom: '11',
       };
       const s = memoryStats(row);
-      assertEqual(s[4],  7,  'intellect at index 4');
+      assertEqual(s[4],  0,  'intellect stays 0 — it comes from food, not memories');
       assertEqual(s[5],  1,  'adaptability at index 5');
       assertEqual(s[6],  3,  'creativity at index 6');
       assertEqual(s[7],  2,  'communication at index 7');

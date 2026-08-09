@@ -132,7 +132,6 @@ function memoryStats(row) {
   s[8]  = parseFloat(row['Discipline']) || 0;
   s[9]  = parseFloat(row['Empathy']) || 0;
   s[10] = parseFloat(row['Focus']) || 0;
-  s[4]  = parseFloat(row['Intellect']) || 0;
   s[11] = parseFloat(row['Leadership']) || 0;
   s[12] = parseFloat(row['Logic']) || 0;
   s[13] = parseFloat(row['Patience']) || 0;
@@ -570,7 +569,7 @@ function buildFoodTable() {
 
 function buildMemoryTable() {
   const statCols = ['adaptability','communication','creativity','disipline','empathy',
-                    'focus','intellect','leadership','logic','patience','wisdom'];
+                    'focus','leadership','logic','patience','wisdom'];
   const wrap = document.getElementById('memory-table-wrap');
   let html = '<table class="edit-table"><thead><tr><th>Memory</th>';
   statCols.forEach(s => { html += `<th title="${STAT_LABELS[s]}">${STAT_ABBR[s]}</th>`; });
@@ -824,7 +823,7 @@ function downloadMemoriesCSV() {
   const memCols = [
     {key:'Adaptability',si:5},{key:'Communication',si:7},{key:'Creativity',si:6},
     {key:'Discipline',si:8},{key:'Empathy',si:9},{key:'Focus',si:10},
-    {key:'Intellect',si:4},{key:'Leadership',si:11},{key:'Logic',si:12},
+    {key:'Leadership',si:11},{key:'Logic',si:12},
     {key:'Patience',si:13},{key:'Wisdom',si:14},
   ];
   let csv = 'Memory;' + memCols.map(c=>c.key).join(';') + ';WorldCount\n';
