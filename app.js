@@ -390,15 +390,23 @@ function loadInventory(silent) {
     const raw = localStorage.getItem('tlc_inventory');
     if (!raw) return;
     try {
-      const data = JSON.parse(raw);
-      if (data._unlimited !== undefined) {
-        document.getElementById('unlimited-check').checked = data._unlimited;
+      // Counts are keyed by item name; blobs written by older versions are keyed
+      // by list position and get converted against the frozen v1 item order, so
+      // adding or reordering rows in data/*.csv cannot skew an old inventory.
+      const state = migrateInventoryData(JSON.parse(raw));
+      if (state.unlimited !== null) {
+        document.getElementById('unlimited-check').checked = state.unlimited;
         toggleUnlimited();
       }
       document.querySelectorAll('.inv-item-input').forEach(inp => {
-        const key = `${inp.dataset.kind}_${inp.dataset.index}`;
-        if (data[key] !== undefined) inp.value = data[key];
+        const list = inp.dataset.kind === 'food' ? foods : memories;
+        const item = list[parseInt(inp.dataset.index)];
+        if (!item) return;
+        const count = state.counts[inp.dataset.kind][item.name];
+        if (count !== undefined) inp.value = count;
       });
+      // Rewrite in the current format so the conversion only ever happens once.
+      persistInventory();
     } catch (e) {
       // Corrupted localStorage — silently discard
       localStorage.removeItem('tlc_inventory');
@@ -1635,11 +1643,15 @@ function setEcoMode(mode) {
 
 // ─── Inventory Persistence ───────────────────────────────────────────────────
 function persistInventory() {
-  const data = {};
+  const counts = { food: {}, memory: {} };
   document.querySelectorAll('.inv-item-input').forEach(inp => {
-    if (inp.value !== '') data[`${inp.dataset.kind}_${inp.dataset.index}`] = parseInt(inp.value);
+    if (inp.value === '') return;
+    const list = inp.dataset.kind === 'food' ? foods : memories;
+    const item = list[parseInt(inp.dataset.index)];
+    if (item) counts[inp.dataset.kind][item.name] = parseInt(inp.value);
   });
-  data._unlimited = document.getElementById('unlimited-check').checked;
+  const unlimited = document.getElementById('unlimited-check').checked;
+  const data = serializeInventory(counts, unlimited);
   try { localStorage.setItem('tlc_inventory', JSON.stringify(data)); } catch (e) { /* quota */ }
 }
 

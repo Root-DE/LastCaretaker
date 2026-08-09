@@ -16,6 +16,7 @@
   <h1>Test Suite — Human Growth Calculator</h1>
   <div id="results"></div>
   <div id="summary"></div>
+  <script src="inventory-storage.js"></script>
   <script>
     // Minimal test framework
     let passed = 0, failed = 0;
@@ -473,6 +474,62 @@
       const c6 = clampMaxCounts([{ stats: [5,0,0,0,0,0,0,0,0,0,0,0,0,0,0] }], targetReqs, [9999]);
       assertEqual(c6[0], 9999, 'clamp: irrelevant item count unchanged');
     })();
+
+    // ─── Inventory storage format (inventory-storage.js) ──────────────────────
+    // Counts persist by item NAME. The original format keyed them by list
+    // position, so inserting an item shifted every later count onto the wrong
+    // item; migrateInventoryData converts those old blobs on read.
+    {
+      const FOODS = ['High-Fat', 'Mind Surge', 'Nutri-Core'];
+      const MEMS  = ['Ash Notebook', 'Assembly Instructions', 'Basketball'];
+
+      section('Inventory storage — index-keyed blobs migrate to item names');
+      const v1 = migrateInventoryData({ food_0: 7, food_2: 1, memory_1: 4, _unlimited: false }, FOODS, MEMS);
+      assertEqual(v1.counts.food['High-Fat'], 7, 'food_0 maps to the first food');
+      assertEqual(v1.counts.food['Nutri-Core'], 1, 'food_2 maps to the third food');
+      assertEqual(v1.counts.memory['Assembly Instructions'], 4, 'memory_1 maps to the second memory');
+      assertEqual(v1.unlimited, false, 'unlimited flag is preserved');
+
+      section('Inventory storage — v1 blobs use the frozen list order, not the live data');
+      // v1 counts were written against the item order as it stood then, so the
+      // conversion must not depend on what data/*.csv looks like today.
+      const frozen = migrateInventoryData({ memory_22: 5, memory_37: 1, food_12: 2, _unlimited: false });
+      assertEqual(frozen.counts.memory['PECO Athletics - 100m Dash'], 5, 'memory_22 maps through the frozen order');
+      assertEqual(frozen.counts.memory["Where's Tommy"], 1, 'memory_37 maps to the last memory of the v1 dataset');
+      assertEqual(frozen.counts.food['Ultimate Genesis'], 2, 'food_12 maps to the last food of the v1 dataset');
+      assertEqual(LEGACY_V1_ORDER.memory.length, 38, 'the frozen memory order is the 38-item v1 dataset');
+      assertEqual(LEGACY_V1_ORDER.food.length, 13, 'the frozen food order is the 13-item v1 dataset');
+
+      section('Inventory storage — stale indices are dropped, not misapplied');
+      const stale = migrateInventoryData({ food_9: 3, _unlimited: true }, FOODS, MEMS);
+      assertEqual(Object.keys(stale.counts.food).length, 0, 'index past the end of the list is dropped');
+      assertEqual(stale.unlimited, true, 'unlimited flag survives dropped counts');
+
+      section('Inventory storage — name-keyed blobs round-trip');
+      const blob = serializeInventory({ food: { 'Mind Surge': 5 }, memory: { 'Basketball': 2 } }, false);
+      assertEqual(blob._v, INVENTORY_STORAGE_VERSION, 'serialize stamps the storage version');
+      const v2 = migrateInventoryData(blob, FOODS, MEMS);
+      assertEqual(v2.counts.food['Mind Surge'], 5, 'food count round-trips by name');
+      assertEqual(v2.counts.memory['Basketball'], 2, 'memory count round-trips by name');
+      assertEqual(v2.unlimited, false, 'unlimited flag round-trips');
+
+      section('Inventory storage — counts follow the item when the list changes');
+      const reordered = migrateInventoryData(blob, ['Nutri-Core', 'High-Fat', 'Mind Surge'], MEMS);
+      assertEqual(reordered.counts.food['Mind Surge'], 5, 'reordering the food list does not move the count');
+      const withNewItem = migrateInventoryData(blob, ['High-Fat', 'Pear', 'Mind Surge', 'Nutri-Core'], MEMS);
+      assertEqual(withNewItem.counts.food['Mind Surge'], 5, 'inserting a new food does not shift existing counts');
+      assertEqual(withNewItem.counts.food['Pear'], undefined, 'a newly added item has no stored count');
+
+      section('Inventory storage — zero is preserved, not treated as absent');
+      const zeroed = migrateInventoryData(serializeInventory({ food: { 'High-Fat': 0 }, memory: {} }, false), FOODS, MEMS);
+      assertEqual(zeroed.counts.food['High-Fat'], 0, 'an explicit 0 (item excluded) survives the round-trip');
+
+      section('Inventory storage — corrupt or empty input yields no counts');
+      const empty = migrateInventoryData(null, FOODS, MEMS);
+      assertEqual(Object.keys(empty.counts.food).length, 0, 'null blob yields no food counts');
+      assertEqual(Object.keys(empty.counts.memory).length, 0, 'null blob yields no memory counts');
+      assertEqual(empty.unlimited, null, 'null blob leaves the unlimited flag unset');
+    }
 
     // ─── Async test coordination ──────────────────────────────────────────────
     // Track pending async tests; show summary when all complete.
