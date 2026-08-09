@@ -16,6 +16,7 @@
   <h1>Test Suite — Human Growth Calculator</h1>
   <div id="results"></div>
   <div id="summary"></div>
+  <script src="stat-mapping.js"></script>
   <script src="inventory-storage.js"></script>
   <script src="profession-model.js"></script>
   <script src="theme-mode.js"></script>
@@ -50,7 +51,6 @@
     // ─── Load app code as module-like by evaluating ───
     // We test pure functions by inlining them here (app.js is not a module)
 
-    // === parseCSV ===
     function parseCSV(text) {
       const lines = text.trim().split(/\r?\n/);
       if (lines.length < 2) return { headers: [], rows: [] };
@@ -84,57 +84,6 @@
       if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
       if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
       return String(n);
-    }
-
-    const STAT_NAMES = [
-      'weight','height','life_exp','strength','intellect',
-      'adaptability','creativity','communication','disipline',
-      'empathy','focus','leadership','logic','patience','wisdom',
-    ];
-
-    function foodStats(row) {
-      const s = new Array(15).fill(0);
-      s[0] = parseFloat(row['Weight']) || 0;
-      s[1] = parseFloat(row['Height']) || 0;
-      s[2] = parseFloat(row['Life Exp']) || 0;
-      s[3] = parseFloat(row['Strength']) || 0;
-      s[4] = parseFloat(row['Intellect']) || 0;
-      return s;
-    }
-
-    function memoryStats(row) {
-      const s = new Array(15).fill(0);
-      s[5]  = parseFloat(row['Adaptability']) || 0;
-      s[7]  = parseFloat(row['Communication']) || 0;
-      s[6]  = parseFloat(row['Creativity']) || 0;
-      s[8]  = parseFloat(row['Discipline']) || 0;
-      s[9]  = parseFloat(row['Empathy']) || 0;
-      s[10] = parseFloat(row['Focus']) || 0;
-      s[11] = parseFloat(row['Leadership']) || 0;
-      s[12] = parseFloat(row['Logic']) || 0;
-      s[13] = parseFloat(row['Patience']) || 0;
-      s[14] = parseFloat(row['Wisdom']) || 0;
-      return s;
-    }
-
-    function humanStats(row) {
-      const s = new Array(15).fill(0);
-      s[0]  = parseFloat(row['Weight']) || 0;
-      s[1]  = parseFloat(row['Height']) || 0;
-      s[2]  = parseFloat(row['Life Exp.']) || 0;
-      s[3]  = parseFloat(row['Strength']) || 0;
-      s[4]  = parseFloat(row['Intellect']) || 0;
-      s[5]  = parseFloat(row['Adaptability']) || 0;
-      s[6]  = parseFloat(row['Creativity']) || 0;
-      s[7]  = parseFloat(row['Communication']) || 0;
-      s[8]  = parseFloat(row['Disipline']) || 0;
-      s[9]  = parseFloat(row['Empathy']) || 0;
-      s[10] = parseFloat(row['Focus']) || 0;
-      s[11] = parseFloat(row['Leadership']) || 0;
-      s[12] = parseFloat(row['Logic']) || 0;
-      s[13] = parseFloat(row['Patience']) || 0;
-      s[14] = parseFloat(row['Wisdom']) || 0;
-      return s;
     }
 
     function countValid(total, humanFlat, nHumans) {
@@ -300,7 +249,7 @@
                     Leadership: '7', Logic: '8', Patience: '9', Wisdom: '0' };
       const s = humanStats(row);
       assertEqual(s[0], 10, 'weight');
-      assertEqual(s[8], 4, 'disipline (typo in game)');
+      assertEqual(s[8], 4, 'discipline maps to index 8');
       assertEqual(s[14], 0, 'wisdom=0');
     })();
 
@@ -391,7 +340,7 @@
       });
       assert(isSubset, 'Manual Holder T1 is inherent subset of Teacher T2');
 
-      // Guard T2 is NOT a subset (requires Strength=120, which Teacher doesnt need)
+      // Guard T2 is NOT a subset (requires Strength=120, which Teacher does not need)
       const guard = new Array(15).fill(0);
       guard[3] = 120; guard[8] = 15; guard[10] = 12; guard[11] = 10;
       const guardIsSubset = NAMES.every(function(_, si) {
@@ -636,6 +585,61 @@
           assert(false, 'failed to load memories.csv: ' + err.message);
         })
         .finally(() => asyncEnd());
+    })();
+
+    // These walk STAT_COLUMNS rather than restating it, so a stat that stops
+    // being mapped fails here. The mappers used to be copied into this page,
+    // and a copy that kept passing is how an intellect mapping went missing
+    // from the shipped file without a single test noticing.
+    section('Stat mapping — every declared column reaches its index');
+    (function() {
+      const KINDS = { human: humanStats, food: foodStats, memory: memoryStats };
+      for (const kind in KINDS) {
+        const cols = STAT_COLUMNS[kind];
+        const stats = Object.keys(cols);
+        const row = {};
+        stats.forEach((stat, n) => { row[cols[stat][0]] = String(n + 1); });
+        const v = KINDS[kind](row);
+        stats.forEach((stat, n) => {
+          assertEqual(v[STAT_NAMES.indexOf(stat)], n + 1, kind + ': ' + stat + ' reaches its index');
+        });
+        const declared = new Set(stats.map(x => STAT_NAMES.indexOf(x)));
+        const stray = v.map((x, i) => (x !== 0 && !declared.has(i)) ? STAT_NAMES[i] : null).filter(Boolean);
+        assertEqual(stray.join(','), '', kind + ': writes nothing outside its declared stats');
+        assertEqual(v.length, 15, kind + ': returns a 15-stat vector');
+      }
+    })();
+
+    section('Stat mapping — intellect comes from food, never from a memory');
+    (function() {
+      assert('intellect' in STAT_COLUMNS.human, 'a profession can require intellect');
+      assert('intellect' in STAT_COLUMNS.food,  'food grants intellect');
+      assert(!('intellect' in STAT_COLUMNS.memory), 'no memory grants intellect');
+      const idx = STAT_NAMES.indexOf('intellect');
+      assertEqual(humanStats({ Intellect: '220' })[idx], 220, 'a profession requirement is read');
+      assertEqual(foodStats({ Intellect: '50' })[idx], 50, 'a food grant is read');
+      assertEqual(memoryStats({ Intellect: '50' })[idx], 0, 'a memory column is ignored');
+    })();
+
+    section('Stat mapping — older header spellings still load');
+    (function() {
+      assertEqual(humanStats({ 'Life Exp.': '10' })[2], 10, 'legacy life expectancy header');
+      assertEqual(humanStats({ Disipline: '5' })[8], 5, 'legacy misspelled discipline header');
+      assertEqual(humanStats({ 'Life Exp': '10', 'Life Exp.': '99' })[2], 10, 'the current header wins');
+    })();
+
+    section('Human CSV headers — spelled correctly, old exports still load');
+    (function() {
+      const correct = 'Category;Profession;Weight;Height;Life Exp;Strength;Intellect;Adaptability;' +
+                      'Creativity;Communication;Discipline;Empathy;Focus;Leadership;Logic;Patience;Wisdom\n' +
+                      'Engineer;Test T1;20;30;10;50;;;;;5;;4;;3;;\n';
+      const legacy  = correct.replace('Life Exp;', 'Life Exp.;').replace('Discipline;', 'Disipline;');
+      const a = humanStats(parseCSV(correct).rows[0]);
+      const b = humanStats(parseCSV(legacy).rows[0]);
+      assertEqual(a[2], 10, 'life expectancy reads from the corrected header');
+      assertEqual(a[8], 5,  'discipline reads from the corrected header');
+      assertEqual(b[2], 10, 'a legacy export with the old life-expectancy header still loads');
+      assertEqual(b[8], 5,  'a legacy export with the misspelled discipline header still loads');
     })();
 
     asyncBegin();

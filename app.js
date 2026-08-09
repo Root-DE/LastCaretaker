@@ -1,28 +1,5 @@
 // app.js — Main application logic for the Human Growth Specificity Calculator
-
-const STAT_NAMES = [
-  'weight','height','life_exp','strength','intellect',
-  'adaptability','creativity','communication','disipline',
-  'empathy','focus','leadership','logic','patience','wisdom',
-];
-
-const STAT_LABELS = {
-  weight:'Weight', height:'Height', life_exp:'Life Exp.', strength:'Strength',
-  intellect:'Intellect', adaptability:'Adaptability', creativity:'Creativity',
-  communication:'Communication', disipline:'Discipline', empathy:'Empathy',
-  focus:'Focus', leadership:'Leadership', logic:'Logic', patience:'Patience',
-  wisdom:'Wisdom',
-};
-
-// Short column headings for the edit tables. "Communication" is wider than any
-// value beneath it, and with 15 stat columns the headings alone decide whether
-// the table fits the screen. The full label rides along as a tooltip.
-const STAT_ABBR = {
-  weight:'Weight', height:'Height', life_exp:'Life', strength:'Str',
-  intellect:'Int', adaptability:'Adapt', creativity:'Creat',
-  communication:'Comm', disipline:'Disc', empathy:'Emp', focus:'Focus',
-  leadership:'Lead', logic:'Logic', patience:'Pat', wisdom:'Wis',
-};
+// The 15-stat vector and the CSV column mapping live in stat-mapping.js.
 
 const CATEGORY_CLASS = {
   'Engineer':'cat-engineer','Arts & Culture':'cat-arts','Educator':'cat-educator',
@@ -89,54 +66,6 @@ function esc(s) {
 function getItemImageUrl(name) {
   const formatted = name.replace(/ /g, '_').replace(/'/g, '%27');
   return `https://thelastcaretaker.wiki.gg/images/${formatted}.png?format=original`;
-}
-
-// Map CSV columns → 15-stat array for humans
-function humanStats(row) {
-  const s = new Array(15).fill(0);
-  s[0]  = parseFloat(row['Weight']) || 0;
-  s[1]  = parseFloat(row['Height']) || 0;
-  s[2]  = parseFloat(row['Life Exp.']) || 0;
-  s[3]  = parseFloat(row['Strength']) || 0;
-  s[4]  = parseFloat(row['Intellect']) || 0;
-  s[5]  = parseFloat(row['Adaptability']) || 0;
-  s[6]  = parseFloat(row['Creativity']) || 0;
-  s[7]  = parseFloat(row['Communication']) || 0;
-  s[8]  = parseFloat(row['Disipline']) || 0;
-  s[9]  = parseFloat(row['Empathy']) || 0;
-  s[10] = parseFloat(row['Focus']) || 0;
-  s[11] = parseFloat(row['Leadership']) || 0;
-  s[12] = parseFloat(row['Logic']) || 0;
-  s[13] = parseFloat(row['Patience']) || 0;
-  s[14] = parseFloat(row['Wisdom']) || 0;
-  return s;
-}
-
-// Map CSV columns → 15-stat array for food (only physical stats)
-function foodStats(row) {
-  const s = new Array(15).fill(0);
-  s[0]  = parseFloat(row['Weight']) || 0;
-  s[1]  = parseFloat(row['Height']) || 0;
-  s[2]  = parseFloat(row['Life Exp']) || 0;
-  s[3]  = parseFloat(row['Strength']) || 0;
-  s[4]  = parseFloat(row['Intellect']) || 0;
-  return s;
-}
-
-// Map CSV columns → 15-stat array for memories (mental stats + intellect)
-function memoryStats(row) {
-  const s = new Array(15).fill(0);
-  s[5]  = parseFloat(row['Adaptability']) || 0;
-  s[7]  = parseFloat(row['Communication']) || 0;
-  s[6]  = parseFloat(row['Creativity']) || 0;
-  s[8]  = parseFloat(row['Discipline']) || 0;
-  s[9]  = parseFloat(row['Empathy']) || 0;
-  s[10] = parseFloat(row['Focus']) || 0;
-  s[11] = parseFloat(row['Leadership']) || 0;
-  s[12] = parseFloat(row['Logic']) || 0;
-  s[13] = parseFloat(row['Patience']) || 0;
-  s[14] = parseFloat(row['Wisdom']) || 0;
-  return s;
 }
 
 // ─── Data Loading ────────────────────────────────────────────────────────────
@@ -568,7 +497,7 @@ function buildFoodTable() {
 }
 
 function buildMemoryTable() {
-  const statCols = ['adaptability','communication','creativity','disipline','empathy',
+  const statCols = ['adaptability','communication','creativity','discipline','empathy',
                     'focus','leadership','logic','patience','wisdom'];
   const wrap = document.getElementById('memory-table-wrap');
   let html = '<table class="edit-table"><thead><tr><th>Memory</th>';
@@ -834,8 +763,8 @@ function downloadMemoriesCSV() {
 }
 
 function downloadHumansCSV() {
-  const cols = ['Category','Profession','Weight','Height','Life Exp.','Strength','Intellect',
-    'Adaptability','Creativity','Communication','Disipline','Empathy','Focus',
+  const cols = ['Category','Profession','Weight','Height','Life Exp','Strength','Intellect',
+    'Adaptability','Creativity','Communication','Discipline','Empathy','Focus',
     'Leadership','Logic','Patience','Wisdom'];
   let csv = cols.join(';') + '\n';
   humans.forEach(h => {
