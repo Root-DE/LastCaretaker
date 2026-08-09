@@ -17,6 +17,7 @@
   <div id="results"></div>
   <div id="summary"></div>
   <script src="inventory-storage.js"></script>
+  <script src="profession-model.js"></script>
   <script>
     // Minimal test framework
     let passed = 0, failed = 0;
@@ -474,6 +475,45 @@
       const c6 = clampMaxCounts([{ stats: [5,0,0,0,0,0,0,0,0,0,0,0,0,0,0] }], targetReqs, [9999]);
       assertEqual(c6[0], 9999, 'clamp: irrelevant item count unchanged');
     })();
+
+    // ─── Profession tiers (profession-model.js) ───────────────────────────────
+    // Sources disagree on how the game picks among several matching professions,
+    // but every account agrees a lower-tier match of the same family is not what
+    // you end up with, while an equal-tier match in another category is a real
+    // contender. Tier position is the fact the display can rely on.
+    {
+      section('Profession tiers — parsing');
+      assertEqual(getTier('Quantum Engineer T4'), 4, 'reads the tier suffix');
+      assertEqual(getTier('Maintenance Engineer T1'), 1, 'reads a single-digit tier');
+      assertEqual(getTier('Ash Notebook'), 0, 'a name with no tier is tier 0');
+      assertEqual(stripTier('Quantum Engineer T4'), 'Quantum Engineer', 'drops the tier suffix');
+      assertEqual(stripTier('Guardian of Humanity T4'), 'Guardian of Humanity', 'drops it from a multi-word name');
+      assertEqual(stripTier('Ash Notebook'), 'Ash Notebook', 'leaves an untiered name alone');
+      assertEqual(stripTier('PECO Athletics - 100m Dash'), 'PECO Athletics - 100m Dash', 'does not mistake a digit mid-name for a tier');
+
+      // The mechanic behind this is contested, and the most-cited wiki claim
+      // lost its qualifier in a silent 2026-06-30 reword: it was introduced as
+      // "favoring the highest matched tier of job PER CATEGORY" and now reads
+      // "favoring higher-tier matches". Under the original, a match in another
+      // category competes regardless of tier; under the reworded one it does
+      // not. The model separates those cases rather than ranking by tier alone,
+      // and says nothing about which one actually wins.
+      section('Profession position — a match in another category is its own case');
+      assertEqual(collateralRisk('Quantum Engineer T4', 'Quantum Engineer T4', 'Engineer', 'Engineer'),
+                  'target', 'the target itself');
+      assertEqual(collateralRisk('Quantum Engineer T4', 'Basic Supplier T1', 'Engineer', 'Logistics'),
+                  'other-category', 'a lower tier in another category is not ranked by tier');
+      assertEqual(collateralRisk('Quantum Engineer T4', 'Guardian of Humanity T4', 'Engineer', 'Military'),
+                  'other-category', 'nor is an equal tier in another category');
+
+      section('Profession position — within one category, tier decides');
+      assertEqual(collateralRisk('Quantum Engineer T4', 'Systems Engineer T2', 'Engineer', 'Engineer'),
+                  'below', 'a lower tier of the same category sits below the target');
+      assertEqual(collateralRisk('Systems Engineer T2', 'Quantum Engineer T4', 'Engineer', 'Engineer'),
+                  'outranks', 'a higher tier of the same category outranks it');
+      assertEqual(collateralRisk('Systems Engineer T2', 'Field Engineer T2', 'Engineer', 'Engineer'),
+                  'ties', 'an equal tier of the same category ties');
+    }
 
     // ─── Inventory storage format (inventory-storage.js) ──────────────────────
     // Counts persist by item NAME. The original format keyed them by list
