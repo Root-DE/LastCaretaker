@@ -572,6 +572,41 @@
 
     asyncBegin();
     (function() {
+      // The cartridge memories all share one stat block. Asserted against the
+      // shipped CSV rather than a literal so a dropped or mistyped row fails here.
+      const CARTRIDGES = [
+        'Breakdown', 'Chiptropolis', 'Fluctuations', 'Guitar Slinger',
+        'Keys to Imagination', 'Lonelies', 'PECO Athletics - 100m Dash',
+        'PECO Athletics - Javelin', 'PECO Athletics - Triple Jump',
+        'Second Reality', 'Starshine', "Touchin' the Chip", 'Turbulence',
+      ];
+      const label = 'Memory dataset — cartridge memories share one stat block';
+      fetch('data/memories.csv')
+        .then(r => r.text())
+        .then(text => {
+          section(label);
+          const rows = {};
+          parseCSV(text).rows.forEach(r => { rows[r['Memory']] = r; });
+          CARTRIDGES.forEach(name => {
+            const row = rows[name];
+            if (!row) { assert(false, name + ' is present in memories.csv'); return; }
+            const s = memoryStats(row);
+            assertEqual(s[5], 20, name + ' adaptability');
+            assertEqual(s[6], 25, name + ' creativity');
+            assertEqual(s[10], 25, name + ' focus');
+            assertEqual(s[13], 20, name + ' patience');
+            assertEqual(row['WorldCount'], '30', name + ' world count');
+          });
+        })
+        .catch(err => {
+          section(label);
+          assert(false, 'failed to load memories.csv: ' + err.message);
+        })
+        .finally(() => asyncEnd());
+    })();
+
+    asyncBegin();
+    (function() {
       const worker = new Worker('solver-worker.js');
       const t = setTimeout(() => { assert(false, 'worker timed out'); worker.terminate(); asyncEnd(); }, 5000);
       worker.onmessage = function(e) {
