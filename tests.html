@@ -640,6 +640,31 @@
 
     asyncBegin();
     (function() {
+      // The Pear is grown in an Eden Frame rather than crafted, so it carries no
+      // recipe. One point of every physical stat makes it the fine-grain filler
+      // for trimming overshoot.
+      const label = 'Food dataset — the Pear grows one of every physical stat';
+      fetch('data/food.csv')
+        .then(r => r.text())
+        .then(text => {
+          section(label);
+          const row = parseCSV(text).rows.find(r => r['Food'] === 'Pear');
+          if (!row) { assert(false, 'Pear is present in food.csv'); return; }
+          const s = foodStats(row);
+          assertEqual(s[0], 1, 'Pear weight');
+          assertEqual(s[1], 1, 'Pear height');
+          assertEqual(s[2], 1, 'Pear life expectancy');
+          assertEqual(s[3], 1, 'Pear strength');
+          assertEqual(s[4], 1, 'Pear intellect');
+          assert(parseInt(row['TotalAvailability'], 10) >= 100,
+                 'Pear is plentiful enough that eco mode will still pick it');
+        })
+        .catch(err => { section(label); assert(false, 'failed to load food.csv: ' + err.message); })
+        .finally(() => asyncEnd());
+    })();
+
+    asyncBegin();
+    (function() {
       // Intellect comes from food. No memory has ever granted it, so the column
       // was dropped rather than kept as a permanently empty one.
       const label = 'Memory dataset — no intellect column';
