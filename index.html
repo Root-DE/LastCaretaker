@@ -3,43 +3,100 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>The Last Caretaker — Human Growth Calculator</title>
+  <title>Human Growth Calculator — The Last Caretaker Profession Recipes</title>
+
+  <!-- Paint the correct ground before first paint, so the page never flashes
+       the wrong theme while app.js is still loading. -->
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('tlc_theme');
+        if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+      } catch (e) { /* storage blocked — fall back to the media query */ }
+    })();
+  </script>
 
   <!-- SEO: core -->
-  <meta name="description" content="Find the most targeted food and memory recipe for any profession in The Last Caretaker. Minimise collateral profession matches with this free Human Growth Specificity Calculator.">
-  <meta name="robots" content="index, follow">
+  <meta name="description" content="Free Human Growth Calculator for The Last Caretaker. Pick a profession and get the exact food and memory recipe that meets its stat requirements while matching the fewest other professions.">
+  <meta name="keywords" content="The Last Caretaker, human growth calculator, profession recipe, food stats, memory stats, Lazarus Complex, growth chamber">
+  <meta name="robots" content="index, follow, max-image-preview:large">
   <link rel="canonical" href="https://root-de.github.io/LastCaretaker/">
+  <meta name="theme-color" content="#080d10" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#e7ecee" media="(prefers-color-scheme: light)">
+  <meta name="color-scheme" content="dark light">
 
   <!-- SEO: Open Graph (Facebook / Discord unfurls) -->
   <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Last Caretaker — Human Growth Calculator">
+  <meta property="og:locale" content="en">
   <meta property="og:url" content="https://root-de.github.io/LastCaretaker/">
-  <meta property="og:title" content="The Last Caretaker — Human Growth Calculator">
-  <meta property="og:description" content="Find the most targeted food and memory recipe for any profession. Minimise collateral profession matches with this free Human Growth Specificity Calculator.">
+  <meta property="og:title" content="Human Growth Calculator — The Last Caretaker Profession Recipes">
+  <meta property="og:description" content="Pick a profession and get the exact food and memory recipe that meets its stat requirements while matching the fewest other professions.">
   <meta property="og:image" content="https://thelastcaretaker.wiki.gg/images/Ultimate_Genesis.png?format=original">
+  <meta property="og:image:alt" content="Ultimate Genesis, the highest-tier food in The Last Caretaker">
 
   <!-- SEO: Twitter / X Card -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="The Last Caretaker — Human Growth Calculator">
-  <meta name="twitter:description" content="Find the most targeted food and memory recipe for any profession in The Last Caretaker.">
+  <meta name="twitter:title" content="Human Growth Calculator — The Last Caretaker Profession Recipes">
+  <meta name="twitter:description" content="Pick a profession and get the exact food and memory recipe that meets its stat requirements while matching the fewest other professions.">
   <meta name="twitter:image" content="https://thelastcaretaker.wiki.gg/images/Ultimate_Genesis.png?format=original">
+  <meta name="twitter:image:alt" content="Ultimate Genesis, the highest-tier food in The Last Caretaker">
 
   <!-- Google Search Console verification -->
   <meta name="google-site-verification" content="wK-8hF496lkVX8eMX8-0tBJPlFsWU184TBvQcSlW-_8">
 
   <link rel="stylesheet" href="style.css">
   <link rel="icon" href="https://thelastcaretaker.wiki.gg/images/Ultimate_Genesis.png?format=original" type="image/png">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "Human Growth Calculator — The Last Caretaker",
+    "url": "https://root-de.github.io/LastCaretaker/",
+    "applicationCategory": "GameApplication",
+    "operatingSystem": "Any modern browser",
+    "browserRequirements": "Requires JavaScript and Web Workers",
+    "description": "Pick a profession from The Last Caretaker and get the food and memory recipe that meets its stat requirements while matching the fewest other professions. All computation runs locally in the browser.",
+    "isAccessibleForFree": true,
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "about": { "@type": "VideoGame", "name": "The Last Caretaker" },
+    "featureList": [
+      "Specificity-optimised solver that minimises collateral profession matches",
+      "Editable food, memory and profession data with CSV import and export",
+      "Resource inventory with per-item availability",
+      "Eco modes that weight recipes by world or inventory scarcity"
+    ]
+  }
+  </script>
 </head>
 <body>
   <div class="app">
 
-    <!-- Header -->
-    <header class="header">
-      <div class="header-inner">
-        <h1 class="header-title">THE LAST CARETAKER</h1>
-        <p class="header-subtitle">Human Growth Specificity Calculator</p>
-        <p class="header-desc">Find the most targeted food &amp; memory recipe for any profession &mdash; minimising collateral profession matches.</p>
+    <!-- Top bar -->
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-title">The Last Caretaker</span>
+        <span class="brand-sub">Human Growth Calculator</span>
       </div>
+      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to light theme">
+        <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/>
+        </svg>
+        <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"/>
+          <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>
+        </svg>
+      </button>
     </header>
+
+    <div class="status-strip" id="status-strip" role="status" aria-live="polite">
+      <span class="status-state"><i class="status-dot" aria-hidden="true"></i><span id="status-state-text">Loading data</span></span>
+      <span class="status-readings" id="status-readings"></span>
+    </div>
+
+    <h1 class="lede">Grow the profession you want in <span class="lede-game">The Last Caretaker</span> &mdash; and <em>nothing else</em>.</h1>
+    <p class="lede-sub">A recipe that clears one profession's stat requirements usually clears several others too, and the game may pick any of them. This finds the food and memory combination that matches the fewest.</p>
 
     <main class="main">
 
@@ -64,16 +121,20 @@
             <p class="req-hint">Values = stats that food &amp; memories must <strong>meet or exceed</strong>. Click a value to edit.</p>
             <div id="req-grid" class="req-grid"></div>
             <div id="analysis-panel" class="analysis-panel hidden">
-              <h4>Profession Analysis</h4>
+              <h4>Every profession this recipe could produce</h4>
               <div class="info-box" id="match-info">
-                <strong>Why multiple professions?</strong>
-                When the accumulated stats from a recipe exceed the requirements of more than one profession, multiple matches occur.
-                Professions whose requirements are a strict subset of your target will <em>always</em> match (inherent).
-                It is currently unclear which profession the game selects when multiple match &mdash; it may be random.
-                The solver minimises these collateral matches so you get the best odds.
+                A recipe matches every profession whose requirements it clears, and the game may pick any of them.
+                Some can never be avoided, because their requirements sit entirely inside your target's.
+                The rest are up to the solver &mdash; they light up below as it works.
               </div>
               <div id="analysis-inherent" class="analysis-section"></div>
               <div id="analysis-avoidable" class="analysis-section"></div>
+              <div class="board-legend" aria-hidden="true">
+                <span><i class="lg-target"></i> Target</span>
+                <span><i class="lg-inherent"></i> Unavoidable</span>
+                <span><i class="lg-hit"></i> Extra match</span>
+                <span><i class="lg-clear"></i> Avoided</span>
+              </div>
             </div>
           </div>
         </div>
@@ -111,7 +172,7 @@
           </div>
 
           <div class="inventory-downloads">
-            <span class="download-label">Manage CSVs via the Edit Game Data section below.</span>
+            <span class="download-label">Import and export CSVs in Edit Game Data, below.</span>
           </div>
         </div>
       </section>
@@ -176,34 +237,38 @@
         </div>
       </section>
 
-      <!-- Eco Mode 3-way Switch -->
-      <div class="eco-toggle-wrap">
-        <div class="eco-3way" id="eco-mode-switch" role="radiogroup" aria-label="Solver mode">
-          <button class="eco-seg" data-mode="0">Normal</button>
-          <button class="eco-seg active" data-mode="1"
-            title="Prefer items more abundant in the world, minimising global resource impact">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M11 20A7 7 0 0 1 9.8 6.9C15.5 4.9 17 3.5 19 2c1 2 2 4.5 2 8 0 5.5-4.5 10-10 10Z"/>
-              <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
-            </svg>
-            World Eco
-          </button>
-          <button class="eco-seg" data-mode="2"
-            title="Prefer items you have more of in your inventory, minimising personal resource usage. Set counts in the Inventory section first.">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
-              <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
-            </svg>
-            Inventory Eco
-          </button>
+      <!-- Run bar: what to optimise for, and the action itself -->
+      <div class="run-bar">
+        <div class="run-bar-modes">
+          <span class="run-bar-label">Optimise for</span>
+          <div class="eco-toggle-wrap">
+            <div class="eco-3way" id="eco-mode-switch" role="radiogroup" aria-label="What the solver optimises for">
+              <button class="eco-seg" data-mode="0" role="radio" aria-checked="false"
+                title="Fewest collateral profession matches only">Specificity</button>
+              <button class="eco-seg active" data-mode="1" role="radio" aria-checked="true"
+                title="Also prefer items that are more abundant in the world, minimising global resource impact">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path d="M11 20A7 7 0 0 1 9.8 6.9C15.5 4.9 17 3.5 19 2c1 2 2 4.5 2 8 0 5.5-4.5 10-10 10Z"/>
+                  <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
+                </svg>
+                World stock
+              </button>
+              <button class="eco-seg" data-mode="2" role="radio" aria-checked="false"
+                title="Also prefer items you hold more of. Set counts in Resource Inventory first.">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
+                  <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
+                </svg>
+                My stock
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
-
-      <!-- Solve Button -->
-      <div class="solve-container">
-        <button id="solve-btn" class="btn btn-solve" disabled>Find Optimal Recipe</button>
-        <button id="pause-btn" class="btn btn-pause hidden">Pause</button>
-        <button id="cancel-btn" class="btn btn-cancel hidden">Cancel</button>
+        <div class="solve-container">
+          <button id="solve-btn" class="btn btn-solve" disabled>Find recipe</button>
+          <button id="pause-btn" class="btn btn-pause hidden">Pause</button>
+          <button id="cancel-btn" class="btn btn-cancel hidden">Cancel</button>
+        </div>
       </div>
 
       <!-- Progress -->

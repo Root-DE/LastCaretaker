@@ -196,11 +196,13 @@ function onProfessionChange() {
     panel.classList.add('hidden');
     solveBtn.disabled = true;
     currentTarget = null;
+    idleStatus();
     return;
   }
   currentTarget = idx;
   solveBtn.disabled = false;
   showRequirements(idx);
+  idleStatus();
 }
 
 function showRequirements(idx) {
@@ -262,7 +264,8 @@ function analysisGroupHTML(list, tagClass) {
     html += `<div class="analysis-cat-group">
       <span class="analysis-cat-header ${catCls}">${esc(cat)}</span>
       <span class="analysis-cat-items">${profs.map(h =>
-        `<span class="analysis-tag ${tagClass}">${esc(stripTier(h.profession))}</span>`).join('')}</span>
+        `<span class="analysis-tag ${tagClass}" data-prof="${esc(h.profession)}"
+               title="${esc(h.profession)}">${esc(stripTier(h.profession))}</span>`).join('')}</span>
     </div>`;
   }
   return html;
@@ -315,6 +318,29 @@ function showAnalysis(targetIdx) {
     <div class="analysis-grouped">${analysisGroupHTML(avoidableList, 'avoidable')}</div>${avoidableNote}`;
 
   ap.classList.remove('hidden');
+  boardKey = null; // the tags were just re-rendered — force the next paint
+  markBoard(null);
+}
+
+// The board is the live view of the search: every profession the target could
+// collaterally produce, lit as the current best recipe changes. `matched` is the
+// list from displayResults; null clears it back to the resting state.
+// Live results refresh on every improvement, so repaint only when the matched
+// set actually changes — otherwise the board flickers throughout a long search.
+let boardKey = null;
+
+function markBoard(matched) {
+  const key = matched ? matched.map(m => m.profession).sort().join('|') : '';
+  if (key === boardKey) return;
+  boardKey = key;
+
+  const target = currentTarget !== null ? humans[currentTarget].profession : null;
+  const hits = matched ? new Set(matched.map(m => m.profession)) : null;
+  document.querySelectorAll('.analysis-tag[data-prof]').forEach(tag => {
+    const prof = tag.dataset.prof;
+    tag.classList.toggle('is-target', prof === target);
+    tag.classList.toggle('is-hit', !!hits && prof !== target && hits.has(prof));
+  });
 }
 
 // ─── UI: Inventory ───────────────────────────────────────────────────────────
@@ -1100,6 +1126,7 @@ function startSolve() {
   paused = false;
   totalPausedMs = 0;
   globalBest = null;
+  markBoard(null); // clear last run's marks before the new search paints its own
   allSolutions = [];
   solutionIndex = 0;
   userBrowsingSolutions = false;
@@ -1275,7 +1302,7 @@ function finishSolve() {
   if (globalBest) {
     let bestText = `Best: ${globalBest.items.length} items, ${globalBest.collateral} profession${globalBest.collateral !== 1 ? 's' : ''} matched`;
     if (ecoModeActive && globalBest.resourceCost != null) {
-      bestText += ` (${(globalBest.resourceCost * 100).toFixed(1)}% resource cost)`;
+      bestText += ` · draws ${(globalBest.resourceCost * 100).toFixed(1)}% of stock`;
     }
     document.getElementById('progress-best').textContent = bestText;
   }
@@ -1286,6 +1313,13 @@ function finishSolve() {
     solutionIndex = allSolutions.length - 1;
     globalBest = allSolutions[solutionIndex];
   }
+
+  const finalState = cancelledByUser ? 'Stopped' : (globalBest ? 'Recipe found' : 'No recipe');
+  const finalReadings = globalBest
+    ? [`${globalBest.items.length} items`, `${globalBest.collateral} professions matched`, `${elapsed.toFixed(1)}s`]
+    : [`${elapsed.toFixed(1)}s`];
+  setStatus(finalState, finalReadings, false);
+
   displayResults(elapsed, true);
 }
 
@@ -1315,10 +1349,15 @@ function updateProgressDisplay(elapsed) {
   }
   const totalNodes = workerNodes.reduce((a, b) => a + b, 0);
   document.getElementById('p-nodes').textContent = `Nodes: ${formatNum(totalNodes)}`;
+
+  const readings = [`${formatNum(totalNodes)} nodes`, `${elapsed.toFixed(1)}s`, `${numWorkers} workers`];
+  if (globalBest) readings.push(`best: ${globalBest.collateral} matched`);
+  setStatus(paused ? 'Paused' : 'Searching', readings, !paused);
+
   if (globalBest) {
     let bestText = `Current best: ${globalBest.items.length} items, ${globalBest.collateral} profession${globalBest.collateral !== 1 ? 's' : ''} matched`;
     if (ecoModeActive && globalBest.resourceCost != null) {
-      bestText += ` (${(globalBest.resourceCost * 100).toFixed(1)}% resource cost)`;
+      bestText += ` · draws ${(globalBest.resourceCost * 100).toFixed(1)}% of stock`;
     }
     document.getElementById('progress-best').textContent = bestText;
   }
@@ -1402,7 +1441,8 @@ function displayResults(elapsed, scroll) {
     const costTooltip = ecoModeValue === 2
       ? 'Resource cost: items used relative to your inventory counts. Lower means less personal inventory impact.'
       : 'Resource cost: items used relative to their world availability. Lower means less impact on shared resources.';
-    badgeExtra = ` &mdash; <span class="resource-cost-badge" title="${costTooltip}">${(sol.resourceCost * 100).toFixed(1)}% resource cost</span>`;
+    const costLabel = ecoModeValue === 2 ? 'of your stock' : 'of world stock';
+    badgeExtra = ` &mdash; <span class="resource-cost-badge" title="${costTooltip}">draws ${(sol.resourceCost * 100).toFixed(1)}% ${costLabel}</span>`;
   }
   let html = `<div class="result-summary">
     <span class="result-badge">${sol.items.length} item${sol.items.length !== 1 ? 's' : ''} &mdash; matches ${sol.collateral} profession${sol.collateral !== 1 ? 's' : ''}${badgeExtra}</span>
@@ -1448,7 +1488,7 @@ function displayResults(elapsed, scroll) {
     html += `<tr title="${breakdown}">
       <td class="stat-name">${STAT_LABELS[STAT_NAMES[si]]}</td>
       <td class="stat-val ${cls}">${Math.round(val)}</td>
-      <td>/ ${Math.round(req)}</td>
+      <td class="stat-target">need ${Math.round(req)}</td>
       <td class="stat-check">${ok ? '✓' : '✗'}</td></tr>`;
   });
   html += '</table></div>';
@@ -1518,6 +1558,9 @@ function displayResults(elapsed, scroll) {
   html += `<div class="search-time">Search: ${elapsed.toFixed(2)}s &bull; Nodes: ${formatNum(totalN)} &bull; Workers: ${numWorkers}</div>`;
 
   body.innerHTML = html;
+
+  // Light the board so the taxonomy above shows what this recipe would produce.
+  markBoard(matched);
 
   // Show apply button if inventory is limited
   const applyWrap = document.getElementById('apply-solution-wrap');
@@ -1643,7 +1686,9 @@ function getEcoMode() {
 
 function setEcoMode(mode) {
   document.querySelectorAll('.eco-seg').forEach(btn => {
-    btn.classList.toggle('active', parseInt(btn.dataset.mode) === mode);
+    const on = parseInt(btn.dataset.mode) === mode;
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-checked', String(on));
   });
 }
 
@@ -1661,14 +1706,63 @@ function persistInventory() {
   try { localStorage.setItem('tlc_inventory', JSON.stringify(data)); } catch (e) { /* quota */ }
 }
 
+// ─── Status strip ────────────────────────────────────────────────────────────
+// One line of machine voice under the header: state on the left, the readings
+// behind it on the right. `busy` switches the dot from nominal to working.
+function setStatus(state, readings, busy) {
+  const strip = document.getElementById('status-strip');
+  const text = document.getElementById('status-state-text');
+  const out = document.getElementById('status-readings');
+  if (!strip || !text || !out) return;
+  text.textContent = state;
+  out.innerHTML = (readings || []).map(r => `<span>${esc(r)}</span>`).join('');
+  strip.classList.toggle('is-busy', !!busy);
+}
+
+function idleStatus() {
+  const readings = [
+    `${humans.length} professions`,
+    `${foods.length} foods`,
+    `${memories.length} memories`,
+  ];
+  if (currentTarget !== null) readings.unshift(humans[currentTarget].profession);
+  setStatus(currentTarget === null ? 'Ready' : 'Target set', readings, false);
+}
+
+// ─── Theme ───────────────────────────────────────────────────────────────────
+// An explicit choice is stored and wins; with nothing stored the page follows
+// the OS via prefers-color-scheme (the inline script in index.html applies any
+// stored value before first paint, so there is no flash of the wrong theme).
+function currentTheme() {
+  const set = document.documentElement.getAttribute('data-theme');
+  if (set === 'light' || set === 'dark') return set;
+  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+}
+
+function setTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  const btn = document.getElementById('theme-toggle');
+  if (btn) btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme');
+  try { localStorage.setItem('tlc_theme', theme); } catch (e) { /* storage blocked */ }
+}
+
+function initTheme() {
+  const btn = document.getElementById('theme-toggle');
+  if (!btn) return;
+  btn.setAttribute('aria-label', currentTheme() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme');
+  btn.addEventListener('click', () => setTheme(currentTheme() === 'dark' ? 'light' : 'dark'));
+}
+
 // ─── Toggle Helpers ──────────────────────────────────────────────────────────
 function setupToggle(btnId, bodyId) {
   const btn = document.getElementById(btnId);
   const body = document.getElementById(bodyId);
+  btn.setAttribute('aria-expanded', String(!body.classList.contains('hidden')));
   btn.addEventListener('click', () => {
     const open = !body.classList.contains('hidden');
     body.classList.toggle('hidden', open);
     btn.classList.toggle('open', !open);
+    btn.setAttribute('aria-expanded', String(!open));
   });
 }
 
@@ -1697,6 +1791,7 @@ async function init() {
   buildEditTables();
 
   // Event listeners
+  initTheme();
   initCombobox();
   document.getElementById('solve-btn').addEventListener('click', startSolve);
   document.getElementById('cancel-btn').addEventListener('click', cancelSolve);
@@ -1744,6 +1839,7 @@ async function init() {
     loadInventory(true);
   }
 
+  idleStatus();
   loadFooterVersion();
 }
 
