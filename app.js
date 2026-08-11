@@ -1,18 +1,5 @@
 // app.js — Main application logic for the Human Growth Specificity Calculator
-
-const STAT_NAMES = [
-  'weight','height','life_exp','strength','intellect',
-  'adaptability','creativity','communication','disipline',
-  'empathy','focus','leadership','logic','patience','wisdom',
-];
-
-const STAT_LABELS = {
-  weight:'Weight', height:'Height', life_exp:'Life Exp.', strength:'Strength',
-  intellect:'Intellect', adaptability:'Adaptability', creativity:'Creativity',
-  communication:'Communication', disipline:'Discipline', empathy:'Empathy',
-  focus:'Focus', leadership:'Leadership', logic:'Logic', patience:'Patience',
-  wisdom:'Wisdom',
-};
+// The 15-stat vector and the CSV column mapping live in stat-mapping.js.
 
 const CATEGORY_CLASS = {
   'Engineer':'cat-engineer','Arts & Culture':'cat-arts','Educator':'cat-educator',
@@ -81,55 +68,6 @@ function getItemImageUrl(name) {
   return `https://thelastcaretaker.wiki.gg/images/${formatted}.png?format=original`;
 }
 
-// Map CSV columns → 15-stat array for humans
-function humanStats(row) {
-  const s = new Array(15).fill(0);
-  s[0]  = parseFloat(row['Weight']) || 0;
-  s[1]  = parseFloat(row['Height']) || 0;
-  s[2]  = parseFloat(row['Life Exp.']) || 0;
-  s[3]  = parseFloat(row['Strength']) || 0;
-  s[4]  = parseFloat(row['Intellect']) || 0;
-  s[5]  = parseFloat(row['Adaptability']) || 0;
-  s[6]  = parseFloat(row['Creativity']) || 0;
-  s[7]  = parseFloat(row['Communication']) || 0;
-  s[8]  = parseFloat(row['Disipline']) || 0;
-  s[9]  = parseFloat(row['Empathy']) || 0;
-  s[10] = parseFloat(row['Focus']) || 0;
-  s[11] = parseFloat(row['Leadership']) || 0;
-  s[12] = parseFloat(row['Logic']) || 0;
-  s[13] = parseFloat(row['Patience']) || 0;
-  s[14] = parseFloat(row['Wisdom']) || 0;
-  return s;
-}
-
-// Map CSV columns → 15-stat array for food (only physical stats)
-function foodStats(row) {
-  const s = new Array(15).fill(0);
-  s[0]  = parseFloat(row['Weight']) || 0;
-  s[1]  = parseFloat(row['Height']) || 0;
-  s[2]  = parseFloat(row['Life Exp']) || 0;
-  s[3]  = parseFloat(row['Strength']) || 0;
-  s[4]  = parseFloat(row['Intellect']) || 0;
-  return s;
-}
-
-// Map CSV columns → 15-stat array for memories (mental stats + intellect)
-function memoryStats(row) {
-  const s = new Array(15).fill(0);
-  s[5]  = parseFloat(row['Adaptability']) || 0;
-  s[7]  = parseFloat(row['Communication']) || 0;
-  s[6]  = parseFloat(row['Creativity']) || 0;
-  s[8]  = parseFloat(row['Discipline']) || 0;
-  s[9]  = parseFloat(row['Empathy']) || 0;
-  s[10] = parseFloat(row['Focus']) || 0;
-  s[4]  = parseFloat(row['Intellect']) || 0;
-  s[11] = parseFloat(row['Leadership']) || 0;
-  s[12] = parseFloat(row['Logic']) || 0;
-  s[13] = parseFloat(row['Patience']) || 0;
-  s[14] = parseFloat(row['Wisdom']) || 0;
-  return s;
-}
-
 // ─── Data Loading ────────────────────────────────────────────────────────────
 async function fetchCSV(path) {
   const res = await fetch(path);
@@ -196,11 +134,13 @@ function onProfessionChange() {
     panel.classList.add('hidden');
     solveBtn.disabled = true;
     currentTarget = null;
+    idleStatus();
     return;
   }
   currentTarget = idx;
   solveBtn.disabled = false;
   showRequirements(idx);
+  idleStatus();
 }
 
 function showRequirements(idx) {
@@ -238,8 +178,8 @@ function showRequirements(idx) {
   panel.classList.remove('hidden');
 }
 
-function stripTier(name) { return name.replace(/ T\d+$/, ''); }
-function getTier(name) { const m = name.match(/ T(\d+)$/); return m ? parseInt(m[1]) : 0; }
+// stripTier / getTier / collateralRisk live in profession-model.js, loaded
+// before this file and shared with the test page.
 
 function groupByCategory(list) {
   const cats = {};
@@ -262,7 +202,8 @@ function analysisGroupHTML(list, tagClass) {
     html += `<div class="analysis-cat-group">
       <span class="analysis-cat-header ${catCls}">${esc(cat)}</span>
       <span class="analysis-cat-items">${profs.map(h =>
-        `<span class="analysis-tag ${tagClass}">${esc(stripTier(h.profession))}</span>`).join('')}</span>
+        `<span class="analysis-tag ${tagClass}" data-prof="${esc(h.profession)}"
+               title="${esc(h.profession)}">${esc(stripTier(h.profession))}</span>`).join('')}</span>
     </div>`;
   }
   return html;
@@ -315,6 +256,29 @@ function showAnalysis(targetIdx) {
     <div class="analysis-grouped">${analysisGroupHTML(avoidableList, 'avoidable')}</div>${avoidableNote}`;
 
   ap.classList.remove('hidden');
+  boardKey = null; // the tags were just re-rendered — force the next paint
+  markBoard(null);
+}
+
+// The board is the live view of the search: every profession the target could
+// collaterally produce, lit as the current best recipe changes. `matched` is the
+// list from displayResults; null clears it back to the resting state.
+// Live results refresh on every improvement, so repaint only when the matched
+// set actually changes — otherwise the board flickers throughout a long search.
+let boardKey = null;
+
+function markBoard(matched) {
+  const key = matched ? matched.map(m => m.profession).sort().join('|') : '';
+  if (key === boardKey) return;
+  boardKey = key;
+
+  const target = currentTarget !== null ? humans[currentTarget].profession : null;
+  const hits = matched ? new Set(matched.map(m => m.profession)) : null;
+  document.querySelectorAll('.analysis-tag[data-prof]').forEach(tag => {
+    const prof = tag.dataset.prof;
+    tag.classList.toggle('is-target', prof === target);
+    tag.classList.toggle('is-hit', !!hits && prof !== target && hits.has(prof));
+  });
 }
 
 // ─── UI: Inventory ───────────────────────────────────────────────────────────
@@ -375,8 +339,9 @@ function saveInventory() {
     const index = parseInt(inp.dataset.index);
     const list = kind === 'food' ? foods : memories;
     const name = list[index] ? list[index].name : '';
-    const count = inp.value === '' ? (unlimited ? '' : '0') : inp.value;
-    csv += `${csvQuote(name)};${kind};${count}\n`;
+    // Blank exports as blank in both modes: it means unlimited for that item,
+    // and writing 0 here would turn a Save/Load round trip into an exclusion.
+    csv += `${csvQuote(name)};${kind};${inp.value}\n`;
   });
   csv += `_unlimited;setting;${unlimited}\n`;
   downloadBlob(csv, 'inventory.csv');
@@ -390,15 +355,23 @@ function loadInventory(silent) {
     const raw = localStorage.getItem('tlc_inventory');
     if (!raw) return;
     try {
-      const data = JSON.parse(raw);
-      if (data._unlimited !== undefined) {
-        document.getElementById('unlimited-check').checked = data._unlimited;
-        toggleUnlimited();
+      // Counts are keyed by item name; blobs written by older versions are keyed
+      // by list position and get converted against the frozen v1 item order, so
+      // adding or reordering rows in data/*.csv cannot skew an old inventory.
+      const state = migrateInventoryData(JSON.parse(raw));
+      if (state.unlimited !== null) {
+        document.getElementById('unlimited-check').checked = state.unlimited;
+        toggleUnlimited(false);
       }
       document.querySelectorAll('.inv-item-input').forEach(inp => {
-        const key = `${inp.dataset.kind}_${inp.dataset.index}`;
-        if (data[key] !== undefined) inp.value = data[key];
+        const list = inp.dataset.kind === 'food' ? foods : memories;
+        const item = list[parseInt(inp.dataset.index)];
+        if (!item) return;
+        const count = state.counts[inp.dataset.kind][item.name];
+        if (count !== undefined) inp.value = count;
       });
+      // Rewrite in the current format so the conversion only ever happens once.
+      persistInventory();
     } catch (e) {
       // Corrupted localStorage — silently discard
       localStorage.removeItem('tlc_inventory');
@@ -431,7 +404,7 @@ function handleInvCSVUpload(file) {
     });
     if (unlimitedVal !== null) {
       document.getElementById('unlimited-check').checked = unlimitedVal;
-      toggleUnlimited();
+      toggleUnlimited(false);
     }
     document.querySelectorAll('.inv-item-input').forEach(inp => {
       const kind = inp.dataset.kind;
@@ -456,18 +429,24 @@ function flashButton(id) {
   setTimeout(() => { btn.style.background = ''; btn.style.color = ''; }, 600);
 }
 
+// Clears every count back to blank (= unlimited for that item) without changing
+// the mode, so "unlimited except the few things I don't have" is a Reset plus a
+// couple of zeroes rather than filling in every field by hand.
 function resetInventory() {
-  document.getElementById('unlimited-check').checked = true;
-  toggleUnlimited();
   document.querySelectorAll('.inv-item-input').forEach(inp => { inp.value = ''; });
   persistInventory();
   showToast('Inventory reset');
 }
 
-function toggleUnlimited() {
+// `fillBlanks` seeds empty fields with 0 when switching to limited mode, so the
+// user starts from "I have nothing" and fills in what they own. That is a
+// convenience for a real click only — restoring saved state must pass false, or
+// a field deliberately left blank (= unlimited for that item) would come back
+// as 0 and silently drop the item from every search.
+function toggleUnlimited(fillBlanks) {
   const checked = document.getElementById('unlimited-check').checked;
   document.getElementById('inventory-limited').classList.toggle('hidden', checked);
-  if (!checked) {
+  if (!checked && fillBlanks) {
     document.querySelectorAll('.inv-item-input').forEach(inp => {
       if (inp.value === '') inp.value = '0';
     });
@@ -485,7 +464,7 @@ function buildFoodTable() {
   const statCols = ['weight','height','life_exp','strength','intellect'];
   const wrap = document.getElementById('food-table-wrap');
   let html = '<table class="edit-table"><thead><tr><th>Food</th>';
-  statCols.forEach(s => { html += `<th>${STAT_LABELS[s]}</th>`; });
+  statCols.forEach(s => { html += `<th title="${STAT_LABELS[s]}">${STAT_ABBR[s]}</th>`; });
   html += '<th></th></tr></thead><tbody>';
   foods.forEach((f, fi) => {
     html += `<tr><td><input type="text" value="${esc(f.name)}" class="edit-name-input"
@@ -518,11 +497,11 @@ function buildFoodTable() {
 }
 
 function buildMemoryTable() {
-  const statCols = ['adaptability','communication','creativity','disipline','empathy',
-                    'focus','intellect','leadership','logic','patience','wisdom'];
+  const statCols = ['adaptability','communication','creativity','discipline','empathy',
+                    'focus','leadership','logic','patience','wisdom'];
   const wrap = document.getElementById('memory-table-wrap');
   let html = '<table class="edit-table"><thead><tr><th>Memory</th>';
-  statCols.forEach(s => { html += `<th>${STAT_LABELS[s]}</th>`; });
+  statCols.forEach(s => { html += `<th title="${STAT_LABELS[s]}">${STAT_ABBR[s]}</th>`; });
   html += '<th></th></tr></thead><tbody>';
   memories.forEach((m, mi) => {
     html += `<tr><td><input type="text" value="${esc(m.name)}" class="edit-name-input"
@@ -557,10 +536,16 @@ function buildMemoryTable() {
 function buildHumanTable() {
   const wrap = document.getElementById('human-table-wrap');
   let html = '<table class="edit-table"><thead><tr><th>Profession</th><th>Category</th>';
-  STAT_NAMES.forEach(s => { html += `<th>${STAT_LABELS[s]}</th>`; });
+  STAT_NAMES.forEach(s => { html += `<th title="${STAT_LABELS[s]}">${STAT_ABBR[s]}</th>`; });
   html += '<th></th></tr></thead><tbody>';
+  let prevCategory = null;
   humans.forEach((h, hi) => {
-    html += `<tr><td><input type="text" value="${esc(h.profession)}" class="edit-name-input"
+    // Rows are grouped by category in file order; mark where each group starts
+    // so the table can rule between them and the tiers read as a set.
+    const startsGroup = h.category !== prevCategory && hi > 0;
+    prevCategory = h.category;
+    html += `<tr${startsGroup ? ' class="group-start"' : ''}>
+      <td><input type="text" value="${esc(h.profession)}" class="edit-name-input"
               data-type="human" data-index="${hi}" data-field="profession"></td>`;
     html += `<td><input type="text" value="${esc(h.category)}" class="edit-name-input edit-cat-input"
               data-type="human" data-index="${hi}" data-field="category"></td>`;
@@ -767,7 +752,7 @@ function downloadMemoriesCSV() {
   const memCols = [
     {key:'Adaptability',si:5},{key:'Communication',si:7},{key:'Creativity',si:6},
     {key:'Discipline',si:8},{key:'Empathy',si:9},{key:'Focus',si:10},
-    {key:'Intellect',si:4},{key:'Leadership',si:11},{key:'Logic',si:12},
+    {key:'Leadership',si:11},{key:'Logic',si:12},
     {key:'Patience',si:13},{key:'Wisdom',si:14},
   ];
   let csv = 'Memory;' + memCols.map(c=>c.key).join(';') + ';WorldCount\n';
@@ -778,8 +763,8 @@ function downloadMemoriesCSV() {
 }
 
 function downloadHumansCSV() {
-  const cols = ['Category','Profession','Weight','Height','Life Exp.','Strength','Intellect',
-    'Adaptability','Creativity','Communication','Disipline','Empathy','Focus',
+  const cols = ['Category','Profession','Weight','Height','Life Exp','Strength','Intellect',
+    'Adaptability','Creativity','Communication','Discipline','Empathy','Focus',
     'Leadership','Logic','Patience','Wisdom'];
   let csv = cols.join(';') + '\n';
   humans.forEach(h => {
@@ -1085,6 +1070,7 @@ function startSolve() {
   paused = false;
   totalPausedMs = 0;
   globalBest = null;
+  markBoard(null); // clear last run's marks before the new search paints its own
   allSolutions = [];
   solutionIndex = 0;
   userBrowsingSolutions = false;
@@ -1260,7 +1246,7 @@ function finishSolve() {
   if (globalBest) {
     let bestText = `Best: ${globalBest.items.length} items, ${globalBest.collateral} profession${globalBest.collateral !== 1 ? 's' : ''} matched`;
     if (ecoModeActive && globalBest.resourceCost != null) {
-      bestText += ` (${(globalBest.resourceCost * 100).toFixed(1)}% resource cost)`;
+      bestText += ` · draws ${(globalBest.resourceCost * 100).toFixed(1)}% of stock`;
     }
     document.getElementById('progress-best').textContent = bestText;
   }
@@ -1271,6 +1257,13 @@ function finishSolve() {
     solutionIndex = allSolutions.length - 1;
     globalBest = allSolutions[solutionIndex];
   }
+
+  const finalState = cancelledByUser ? 'Stopped' : (globalBest ? 'Recipe found' : 'No recipe');
+  const finalReadings = globalBest
+    ? [`${globalBest.items.length} items`, `${globalBest.collateral} professions matched`, `${elapsed.toFixed(1)}s`]
+    : [`${elapsed.toFixed(1)}s`];
+  setStatus(finalState, finalReadings, false);
+
   displayResults(elapsed, true);
 }
 
@@ -1300,10 +1293,15 @@ function updateProgressDisplay(elapsed) {
   }
   const totalNodes = workerNodes.reduce((a, b) => a + b, 0);
   document.getElementById('p-nodes').textContent = `Nodes: ${formatNum(totalNodes)}`;
+
+  const readings = [`${formatNum(totalNodes)} nodes`, `${elapsed.toFixed(1)}s`, `${numWorkers} workers`];
+  if (globalBest) readings.push(`best: ${globalBest.collateral} matched`);
+  setStatus(paused ? 'Paused' : 'Searching', readings, !paused);
+
   if (globalBest) {
     let bestText = `Current best: ${globalBest.items.length} items, ${globalBest.collateral} profession${globalBest.collateral !== 1 ? 's' : ''} matched`;
     if (ecoModeActive && globalBest.resourceCost != null) {
-      bestText += ` (${(globalBest.resourceCost * 100).toFixed(1)}% resource cost)`;
+      bestText += ` · draws ${(globalBest.resourceCost * 100).toFixed(1)}% of stock`;
     }
     document.getElementById('progress-best').textContent = bestText;
   }
@@ -1387,7 +1385,8 @@ function displayResults(elapsed, scroll) {
     const costTooltip = ecoModeValue === 2
       ? 'Resource cost: items used relative to your inventory counts. Lower means less personal inventory impact.'
       : 'Resource cost: items used relative to their world availability. Lower means less impact on shared resources.';
-    badgeExtra = ` &mdash; <span class="resource-cost-badge" title="${costTooltip}">${(sol.resourceCost * 100).toFixed(1)}% resource cost</span>`;
+    const costLabel = ecoModeValue === 2 ? 'of your stock' : 'of world stock';
+    badgeExtra = ` &mdash; <span class="resource-cost-badge" title="${costTooltip}">draws ${(sol.resourceCost * 100).toFixed(1)}% ${costLabel}</span>`;
   }
   let html = `<div class="result-summary">
     <span class="result-badge">${sol.items.length} item${sol.items.length !== 1 ? 's' : ''} &mdash; matches ${sol.collateral} profession${sol.collateral !== 1 ? 's' : ''}${badgeExtra}</span>
@@ -1433,7 +1432,7 @@ function displayResults(elapsed, scroll) {
     html += `<tr title="${breakdown}">
       <td class="stat-name">${STAT_LABELS[STAT_NAMES[si]]}</td>
       <td class="stat-val ${cls}">${Math.round(val)}</td>
-      <td>/ ${Math.round(req)}</td>
+      <td class="stat-target">need ${Math.round(req)}</td>
       <td class="stat-check">${ok ? '✓' : '✗'}</td></tr>`;
   });
   html += '</table></div>';
@@ -1503,6 +1502,9 @@ function displayResults(elapsed, scroll) {
   html += `<div class="search-time">Search: ${elapsed.toFixed(2)}s &bull; Nodes: ${formatNum(totalN)} &bull; Workers: ${numWorkers}</div>`;
 
   body.innerHTML = html;
+
+  // Light the board so the taxonomy above shows what this recipe would produce.
+  markBoard(matched);
 
   // Show apply button if inventory is limited
   const applyWrap = document.getElementById('apply-solution-wrap');
@@ -1584,6 +1586,7 @@ function profItemHTML(m) {
     : m.isInherent
       ? 'This profession\u2019s requirements are a subset of your target \u2014 it will always match regardless of recipe.'
       : 'This profession matched due to side-effect stats. A better recipe might avoid it.';
+
   return `<div class="prof-item" title="${esc(tooltip)}">
     <span class="prof-dot ${dotCls}"></span>
     <span class="prof-name">${esc(m.profession)}</span>
@@ -1612,8 +1615,7 @@ function applySolution() {
     if (idx < 0) continue;
     const inp = document.querySelector(`.inv-item-input[data-kind="${datakind}"][data-index="${idx}"]`);
     if (!inp) continue;
-    const cur = parseInt(inp.value) || 0;
-    inp.value = String(Math.max(0, cur - c.count));
+    inp.value = subtractFromStock(inp.value, c.count);
   }
 
   document.getElementById('apply-solution-wrap').classList.add('hidden');
@@ -1629,28 +1631,141 @@ function getEcoMode() {
 
 function setEcoMode(mode) {
   document.querySelectorAll('.eco-seg').forEach(btn => {
-    btn.classList.toggle('active', parseInt(btn.dataset.mode) === mode);
+    const on = parseInt(btn.dataset.mode) === mode;
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-checked', String(on));
   });
 }
 
 // ─── Inventory Persistence ───────────────────────────────────────────────────
 function persistInventory() {
-  const data = {};
+  const counts = { food: {}, memory: {} };
   document.querySelectorAll('.inv-item-input').forEach(inp => {
-    if (inp.value !== '') data[`${inp.dataset.kind}_${inp.dataset.index}`] = parseInt(inp.value);
+    if (inp.value === '') return;
+    const list = inp.dataset.kind === 'food' ? foods : memories;
+    const item = list[parseInt(inp.dataset.index)];
+    if (item) counts[inp.dataset.kind][item.name] = parseInt(inp.value);
   });
-  data._unlimited = document.getElementById('unlimited-check').checked;
+  const unlimited = document.getElementById('unlimited-check').checked;
+  const data = serializeInventory(counts, unlimited);
   try { localStorage.setItem('tlc_inventory', JSON.stringify(data)); } catch (e) { /* quota */ }
+}
+
+// ─── Status strip ────────────────────────────────────────────────────────────
+// One line of machine voice under the header: state on the left, the readings
+// behind it on the right. `busy` switches the dot from nominal to working.
+function setStatus(state, readings, busy) {
+  const strip = document.getElementById('status-strip');
+  const text = document.getElementById('status-state-text');
+  const out = document.getElementById('status-readings');
+  if (!strip || !text || !out) return;
+  text.textContent = state;
+  out.innerHTML = (readings || []).map(r => `<span>${esc(r)}</span>`).join('');
+  strip.classList.toggle('is-busy', !!busy);
+}
+
+function idleStatus() {
+  const readings = [
+    `${humans.length} professions`,
+    `${foods.length} foods`,
+    `${memories.length} memories`,
+  ];
+  if (currentTarget !== null) readings.unshift(humans[currentTarget].profession);
+  setStatus(currentTarget === null ? 'Ready' : 'Target set', readings, false);
+}
+
+// ─── Theme ───────────────────────────────────────────────────────────────────
+// An explicit choice is stored and wins; with nothing stored the page follows
+// the OS via prefers-color-scheme (the inline script in index.html applies any
+// stored value before first paint, so there is no flash of the wrong theme).
+function themeEnv() {
+  return {
+    prefersDark: window.matchMedia('(prefers-color-scheme: dark)').matches,
+    prefersLight: window.matchMedia('(prefers-color-scheme: light)').matches,
+    hour: new Date().getHours(),
+  };
+}
+
+function storedThemeMode() {
+  let raw = null;
+  try { raw = localStorage.getItem('tlc_theme'); } catch (e) { /* storage blocked */ }
+  return readThemeMode(raw);
+}
+
+// Applies a mode: paints the resolved theme, moves the knob to the chosen mode
+// and lights the end icon for the theme actually in force. Those two differ
+// under Auto, which is the whole point of showing both.
+function applyThemeMode(mode) {
+  const root = document.documentElement;
+  // Both attributes also get set in the document head before first paint, so
+  // the knob starts where it belongs instead of sliding over from Auto.
+  root.setAttribute('data-theme-mode', mode);                     // knob position + label
+  root.setAttribute('data-theme', resolveTheme(mode, themeEnv())); // palette + lit icon
+  const radio = document.getElementById('theme-' + mode);
+  if (radio) radio.checked = true;
+}
+
+function setThemeMode(mode) {
+  try { localStorage.setItem('tlc_theme', mode); } catch (e) { /* storage blocked */ }
+  applyThemeMode(mode);
+}
+
+// Drag or swipe the knob along the track.
+function initThemeDrag() {
+  const track = document.querySelector('.theme-track');
+  if (!track || !window.PointerEvent) return;
+
+  const modeAt = (clientX) => {
+    const r = track.getBoundingClientRect();
+    const x = Math.min(Math.max(clientX - r.left, 0), r.width) / r.width;
+    // knob centres sit at 25%, 50% and 75%, so snap on the midpoints between
+    return x < 0.375 ? 'dark' : x < 0.625 ? 'auto' : 'light';
+  };
+  let dragging = false;
+  const to = (e) => {
+    const mode = modeAt(e.clientX);
+    if (mode !== storedThemeMode()) setThemeMode(mode);
+  };
+
+  track.addEventListener('pointerdown', (e) => {
+    dragging = true;
+    track.setPointerCapture(e.pointerId);
+    to(e);
+    e.preventDefault(); // no text selection, no synthetic label click on top
+  });
+  track.addEventListener('pointermove', (e) => { if (dragging) to(e); });
+  const end = (e) => { if (dragging) { dragging = false; to(e); } };
+  track.addEventListener('pointerup', end);
+  track.addEventListener('pointercancel', () => { dragging = false; });
+}
+
+function initTheme() {
+  applyThemeMode(storedThemeMode());
+  document.querySelectorAll('.theme-radio').forEach(radio => {
+    radio.addEventListener('change', () => { if (radio.checked) setThemeMode(radio.value); });
+  });
+  // The end icons are shortcuts to their mode.
+  document.querySelectorAll('.theme-icon[data-mode]').forEach(btn => {
+    btn.addEventListener('click', () => setThemeMode(btn.dataset.mode));
+  });
+  initThemeDrag();
+  // On auto, track the system flipping while the page is open.
+  const dark = window.matchMedia('(prefers-color-scheme: dark)');
+  const onChange = () => { if (storedThemeMode() === 'auto') applyThemeMode('auto'); };
+  if (dark.addEventListener) dark.addEventListener('change', onChange);
+  else if (dark.addListener) dark.addListener(onChange);
 }
 
 // ─── Toggle Helpers ──────────────────────────────────────────────────────────
 function setupToggle(btnId, bodyId) {
   const btn = document.getElementById(btnId);
   const body = document.getElementById(bodyId);
+  btn.setAttribute('aria-expanded', String(!body.classList.contains('hidden')));
   btn.addEventListener('click', () => {
     const open = !body.classList.contains('hidden');
     body.classList.toggle('hidden', open);
     btn.classList.toggle('open', !open);
+    btn.setAttribute('aria-expanded', String(!open));
   });
 }
 
@@ -1679,12 +1794,13 @@ async function init() {
   buildEditTables();
 
   // Event listeners
+  initTheme();
   initCombobox();
   document.getElementById('solve-btn').addEventListener('click', startSolve);
   document.getElementById('cancel-btn').addEventListener('click', cancelSolve);
   document.getElementById('pause-btn').addEventListener('click', togglePause);
   document.getElementById('unlimited-check').addEventListener('change', () => {
-    toggleUnlimited();
+    toggleUnlimited(true); // real click: seed empty fields with 0
     persistInventory();
   });
   document.getElementById('save-inv-btn').addEventListener('click', saveInventory);
@@ -1726,6 +1842,7 @@ async function init() {
     loadInventory(true);
   }
 
+  idleStatus();
   loadFooterVersion();
 }
 

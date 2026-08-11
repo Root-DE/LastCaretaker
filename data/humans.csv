@@ -1,4 +1,4 @@
-Category;Profession;Weight;Height;Life Exp.;Strength;Intellect;Adaptability;Creativity;Communication;Disipline;Empathy;Focus;Leadership;Logic;Patience;Wisdom
+Category;Profession;Weight;Height;Life Exp;Strength;Intellect;Adaptability;Creativity;Communication;Discipline;Empathy;Focus;Leadership;Logic;Patience;Wisdom
 Engineer;Maintenance Engineer T1;20;30;10;50;;;;;5;;4;;3;;
 Engineer;Systems Engineer T2;20;30;10;70;;;;;10;;10;;10;;
 Engineer;Energy Engineer T3;20;30;10;120;;;;;30;;30;;30;;

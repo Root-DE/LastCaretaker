@@ -2,3 +2,6 @@
 # line-ending normalization (which would corrupt it and break the CI
 # `git diff --exit-code` verification against wasm/solver-kernel.wat).
 *.wasm binary
+
+# Web fonts are binary; keep git from normalizing line endings inside them.
+*.woff2 binary

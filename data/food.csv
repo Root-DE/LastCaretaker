@@ -1,4 +1,4 @@
-Food;Height;Intellect;Life Exp;Strength;Weight; Carbohydrate; Fat; Protein; Calcium; Omega-3; Vitamin D; Bioregulator; Mitochondrial Amplifier; Nanite Nutrient;TotalAvailability
+Food;Height;Intellect;Life Exp;Strength;Weight;Carbohydrate;Fat;Protein;Calcium;Omega-3;Vitamin D;Bioregulator;Mitochondrial Amplifier;Nanite Nutrient;TotalAvailability
 High-Fat;1;1;1;1;8;5;8;5;;;;;;;313
 Mind Surge;1;6;6;1;1;1;2;10;;;;;;;45
 Nutri-Core;3;3;3;3;3;3;3;3;;;;;;;67
@@ -12,3 +12,4 @@ Hyper-Evolution;30;20;5;3;3;;;;;;;1;1;3;88
 Mitochondrial Surge;20;3;12;28;3;;;;;;;2;2;2;88
 Nanite Infusion;25;25;6;3;3;;1;;1;;;;;4;76
 Ultimate Genesis;50;50;40;10;10;;;;;;;1;5;1;88
+Pear;1;1;1;1;1;;;;;;;;;;300

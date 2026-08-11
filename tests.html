@@ -16,6 +16,10 @@
   <h1>Test Suite — Human Growth Calculator</h1>
   <div id="results"></div>
   <div id="summary"></div>
+  <script src="stat-mapping.js"></script>
+  <script src="inventory-storage.js"></script>
+  <script src="profession-model.js"></script>
+  <script src="theme-mode.js"></script>
   <script>
     // Minimal test framework
     let passed = 0, failed = 0;
@@ -47,7 +51,6 @@
     // ─── Load app code as module-like by evaluating ───
     // We test pure functions by inlining them here (app.js is not a module)
 
-    // === parseCSV ===
     function parseCSV(text) {
       const lines = text.trim().split(/\r?\n/);
       if (lines.length < 2) return { headers: [], rows: [] };
@@ -81,58 +84,6 @@
       if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
       if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
       return String(n);
-    }
-
-    const STAT_NAMES = [
-      'weight','height','life_exp','strength','intellect',
-      'adaptability','creativity','communication','disipline',
-      'empathy','focus','leadership','logic','patience','wisdom',
-    ];
-
-    function foodStats(row) {
-      const s = new Array(15).fill(0);
-      s[0] = parseFloat(row['Weight']) || 0;
-      s[1] = parseFloat(row['Height']) || 0;
-      s[2] = parseFloat(row['Life Exp']) || 0;
-      s[3] = parseFloat(row['Strength']) || 0;
-      s[4] = parseFloat(row['Intellect']) || 0;
-      return s;
-    }
-
-    function memoryStats(row) {
-      const s = new Array(15).fill(0);
-      s[5]  = parseFloat(row['Adaptability']) || 0;
-      s[7]  = parseFloat(row['Communication']) || 0;
-      s[6]  = parseFloat(row['Creativity']) || 0;
-      s[8]  = parseFloat(row['Discipline']) || 0;
-      s[9]  = parseFloat(row['Empathy']) || 0;
-      s[10] = parseFloat(row['Focus']) || 0;
-      s[4]  = parseFloat(row['Intellect']) || 0;
-      s[11] = parseFloat(row['Leadership']) || 0;
-      s[12] = parseFloat(row['Logic']) || 0;
-      s[13] = parseFloat(row['Patience']) || 0;
-      s[14] = parseFloat(row['Wisdom']) || 0;
-      return s;
-    }
-
-    function humanStats(row) {
-      const s = new Array(15).fill(0);
-      s[0]  = parseFloat(row['Weight']) || 0;
-      s[1]  = parseFloat(row['Height']) || 0;
-      s[2]  = parseFloat(row['Life Exp.']) || 0;
-      s[3]  = parseFloat(row['Strength']) || 0;
-      s[4]  = parseFloat(row['Intellect']) || 0;
-      s[5]  = parseFloat(row['Adaptability']) || 0;
-      s[6]  = parseFloat(row['Creativity']) || 0;
-      s[7]  = parseFloat(row['Communication']) || 0;
-      s[8]  = parseFloat(row['Disipline']) || 0;
-      s[9]  = parseFloat(row['Empathy']) || 0;
-      s[10] = parseFloat(row['Focus']) || 0;
-      s[11] = parseFloat(row['Leadership']) || 0;
-      s[12] = parseFloat(row['Logic']) || 0;
-      s[13] = parseFloat(row['Patience']) || 0;
-      s[14] = parseFloat(row['Wisdom']) || 0;
-      return s;
     }
 
     function countValid(total, humanFlat, nHumans) {
@@ -235,7 +186,7 @@
     section('memoryStats mapping');
     (function() {
       const row = { Adaptability: '2', Communication: '3', Creativity: '1',
-                    Discipline: '4', Empathy: '5', Focus: '6', Intellect: '7',
+                    Discipline: '4', Empathy: '5', Focus: '6',
                     Leadership: '8', Logic: '9', Patience: '10', Wisdom: '11' };
       const s = memoryStats(row);
       assertEqual(s[0], 0, 'weight is 0 for memories');
@@ -243,16 +194,15 @@
       assertEqual(s[7], 3, 'communication mapped');
       assertEqual(s[6], 1, 'creativity mapped');
       assertEqual(s[8], 4, 'discipline mapped');
-      assertEqual(s[4], 7, 'intellect mapped');
       assertEqual(s[14], 11, 'wisdom mapped');
     })();
 
     section('PECO Athletics memories');
     (function() {
-      const csv = 'Memory;Adaptability;Communication;Creativity;Discipline;Empathy;Focus;Intellect;Leadership;Logic;Patience;Wisdom;WorldCount\n'
-        + 'PECO Athletics - 100m Dash;20;;25;;;25;;;;20;;30\n'
-        + 'PECO Athletics - Javelin;20;;25;;;25;;;;20;;30\n'
-        + 'PECO Athletics - Triple Jump;20;;25;;;25;;;;20;;30\n';
+      const csv = 'Memory;Adaptability;Communication;Creativity;Discipline;Empathy;Focus;Leadership;Logic;Patience;Wisdom;WorldCount\n'
+        + 'PECO Athletics - 100m Dash;20;;25;;;25;;;20;;30\n'
+        + 'PECO Athletics - Javelin;20;;25;;;25;;;20;;30\n'
+        + 'PECO Athletics - Triple Jump;20;;25;;;25;;;20;;30\n';
       const parsed = parseCSV(csv);
       assertEqual(parsed.rows.length, 3, 'all 3 PECO memories parsed');
       parsed.rows.forEach((row) => {
@@ -272,8 +222,8 @@
 
     section('Porcine Vocal Interface memory');
     (function() {
-      const csv = 'Memory;Adaptability;Communication;Creativity;Discipline;Empathy;Focus;Intellect;Leadership;Logic;Patience;Wisdom;WorldCount\n'
-        + 'Porcine Vocal Interface;;100;50;;50;;;;;;;10\n';
+      const csv = 'Memory;Adaptability;Communication;Creativity;Discipline;Empathy;Focus;Leadership;Logic;Patience;Wisdom;WorldCount\n'
+        + 'Porcine Vocal Interface;;100;50;;50;;;;;;10\n';
       const parsed = parseCSV(csv);
       assertEqual(parsed.rows.length, 1, 'Porcine Vocal Interface parsed');
       const row = parsed.rows[0];
@@ -294,13 +244,12 @@
     section('humanStats mapping');
     (function() {
       const row = { Weight: '10', Height: '20', 'Life Exp.': '30', Strength: '40',
-                    Intellect: '50', Adaptability: '1', Creativity: '2',
+                    Adaptability: '1', Creativity: '2',
                     Communication: '3', Disipline: '4', Empathy: '5', Focus: '6',
                     Leadership: '7', Logic: '8', Patience: '9', Wisdom: '0' };
       const s = humanStats(row);
       assertEqual(s[0], 10, 'weight');
-      assertEqual(s[4], 50, 'intellect');
-      assertEqual(s[8], 4, 'disipline (typo in game)');
+      assertEqual(s[8], 4, 'discipline maps to index 8');
       assertEqual(s[14], 0, 'wisdom=0');
     })();
 
@@ -348,7 +297,7 @@
 
     section('Ash Notebook stat update');
     (function() {
-      const csv = 'Memory;Adaptability;Communication;Creativity;Discipline;Empathy;Focus;Intellect;Leadership;Logic;Patience;Wisdom\nAsh Notebook;100;100;100;100;100;100;100;100;100;100;100\n';
+      const csv = 'Memory;Adaptability;Communication;Creativity;Discipline;Empathy;Focus;Leadership;Logic;Patience;Wisdom\nAsh Notebook;100;100;100;100;100;100;100;100;100;100\n';
       const parsed = parseCSV(csv);
       const s = memoryStats(parsed.rows[0]);
       assertEqual(s[12], 100, 'Ash Notebook logic is 100 (updated from 10)');
@@ -357,7 +306,7 @@
 
     section('Teddy Bear memory \u2014 same empathy as Tommy (empathy=3)');
     (function() {
-      const csv = 'Memory;Adaptability;Communication;Creativity;Discipline;Empathy;Focus;Intellect;Leadership;Logic;Patience;Wisdom;WordCount\nTeddy Bear;;;;;3;;;;;;;17\n';
+      const csv = 'Memory;Adaptability;Communication;Creativity;Discipline;Empathy;Focus;Leadership;Logic;Patience;Wisdom;WordCount\nTeddy Bear;;;;;3;;;;;;17\n';
       const parsed = parseCSV(csv);
       const s = memoryStats(parsed.rows[0]);
       assertEqual(s[9], 3, 'Teddy Bear empathy is 3');
@@ -391,7 +340,7 @@
       });
       assert(isSubset, 'Manual Holder T1 is inherent subset of Teacher T2');
 
-      // Guard T2 is NOT a subset (requires Strength=120, which Teacher doesnt need)
+      // Guard T2 is NOT a subset (requires Strength=120, which Teacher does not need)
       const guard = new Array(15).fill(0);
       guard[3] = 120; guard[8] = 15; guard[10] = 12; guard[11] = 10;
       const guardIsSubset = NAMES.every(function(_, si) {
@@ -474,6 +423,138 @@
       assertEqual(c6[0], 9999, 'clamp: irrelevant item count unchanged');
     })();
 
+    // ─── Theme mode (theme-mode.js) ───────────────────────────────────────────
+    {
+      const env = (d, l, h) => ({ prefersDark: d, prefersLight: l, hour: h });
+
+      section('Theme mode — an explicit choice always wins');
+      assertEqual(resolveTheme('dark', env(false, true, 12)), 'dark', 'dark ignores a light system');
+      assertEqual(resolveTheme('light', env(true, false, 2)), 'light', 'light ignores a dark system');
+
+      section('Theme mode — auto follows the system when it states a preference');
+      assertEqual(resolveTheme('auto', env(true, false, 12)), 'dark', 'system dark wins over midday');
+      assertEqual(resolveTheme('auto', env(false, true, 2)), 'light', 'system light wins over the small hours');
+
+      section('Theme mode — auto falls back to local time when the system is silent');
+      assertEqual(resolveTheme('auto', env(false, false, 12)), 'light', 'midday is light');
+      assertEqual(resolveTheme('auto', env(false, false, 7)), 'light', 'the day starts at 07:00');
+      assertEqual(resolveTheme('auto', env(false, false, 18)), 'light', '18:00 is still light');
+      assertEqual(resolveTheme('auto', env(false, false, 19)), 'dark', 'the evening starts at 19:00');
+      assertEqual(resolveTheme('auto', env(false, false, 23)), 'dark', 'late evening is dark');
+      assertEqual(resolveTheme('auto', env(false, false, 3)), 'dark', 'the small hours are dark');
+      assertEqual(resolveTheme('auto', env(false, false, 0)), 'dark', 'midnight is dark');
+
+      section('Theme mode — a stored setting is validated, not trusted');
+      assertEqual(readThemeMode('dark'), 'dark', 'a valid mode is kept');
+      assertEqual(readThemeMode('light'), 'light', 'a valid mode is kept');
+      assertEqual(readThemeMode('auto'), 'auto', 'auto is kept');
+      assertEqual(readThemeMode(null), 'auto', 'nothing stored means auto');
+      assertEqual(readThemeMode('sepia'), 'auto', 'an unknown value falls back to auto');
+      assertEqual(THEME_MODES.join(','), 'dark,auto,light', 'the switch reads dark, auto, light');
+    }
+
+    // ─── Profession tiers (profession-model.js) ───────────────────────────────
+    // Sources disagree on how the game picks among several matching professions,
+    // but every account agrees a lower-tier match of the same family is not what
+    // you end up with, while an equal-tier match in another category is a real
+    // contender. Tier position is the fact the display can rely on.
+    {
+      section('Profession tiers — parsing');
+      assertEqual(getTier('Quantum Engineer T4'), 4, 'reads the tier suffix');
+      assertEqual(getTier('Maintenance Engineer T1'), 1, 'reads a single-digit tier');
+      assertEqual(getTier('Ash Notebook'), 0, 'a name with no tier is tier 0');
+      assertEqual(stripTier('Quantum Engineer T4'), 'Quantum Engineer', 'drops the tier suffix');
+      assertEqual(stripTier('Guardian of Humanity T4'), 'Guardian of Humanity', 'drops it from a multi-word name');
+      assertEqual(stripTier('Ash Notebook'), 'Ash Notebook', 'leaves an untiered name alone');
+      assertEqual(stripTier('PECO Athletics - 100m Dash'), 'PECO Athletics - 100m Dash', 'does not mistake a digit mid-name for a tier');
+
+      // The mechanic behind this is contested, and the most-cited wiki claim
+      // lost its qualifier in a silent 2026-06-30 reword: it was introduced as
+      // "favoring the highest matched tier of job PER CATEGORY" and now reads
+      // "favoring higher-tier matches". Under the original, a match in another
+      // category competes regardless of tier; under the reworded one it does
+      // not. The model separates those cases rather than ranking by tier alone,
+      // and says nothing about which one actually wins.
+      section('Profession position — a match in another category is its own case');
+      assertEqual(collateralRisk('Quantum Engineer T4', 'Quantum Engineer T4', 'Engineer', 'Engineer'),
+                  'target', 'the target itself');
+      assertEqual(collateralRisk('Quantum Engineer T4', 'Basic Supplier T1', 'Engineer', 'Logistics'),
+                  'other-category', 'a lower tier in another category is not ranked by tier');
+      assertEqual(collateralRisk('Quantum Engineer T4', 'Guardian of Humanity T4', 'Engineer', 'Military'),
+                  'other-category', 'nor is an equal tier in another category');
+
+      section('Profession position — within one category, tier decides');
+      assertEqual(collateralRisk('Quantum Engineer T4', 'Systems Engineer T2', 'Engineer', 'Engineer'),
+                  'below', 'a lower tier of the same category sits below the target');
+      assertEqual(collateralRisk('Systems Engineer T2', 'Quantum Engineer T4', 'Engineer', 'Engineer'),
+                  'outranks', 'a higher tier of the same category outranks it');
+      assertEqual(collateralRisk('Systems Engineer T2', 'Field Engineer T2', 'Engineer', 'Engineer'),
+                  'ties', 'an equal tier of the same category ties');
+    }
+
+    // ─── Inventory storage format (inventory-storage.js) ──────────────────────
+    // Counts persist by item NAME. The original format keyed them by list
+    // position, so inserting an item shifted every later count onto the wrong
+    // item; migrateInventoryData converts those old blobs on read.
+    {
+      const FOODS = ['High-Fat', 'Mind Surge', 'Nutri-Core'];
+      const MEMS  = ['Ash Notebook', 'Assembly Instructions', 'Basketball'];
+
+      section('Inventory storage — index-keyed blobs migrate to item names');
+      const v1 = migrateInventoryData({ food_0: 7, food_2: 1, memory_1: 4, _unlimited: false }, FOODS, MEMS);
+      assertEqual(v1.counts.food['High-Fat'], 7, 'food_0 maps to the first food');
+      assertEqual(v1.counts.food['Nutri-Core'], 1, 'food_2 maps to the third food');
+      assertEqual(v1.counts.memory['Assembly Instructions'], 4, 'memory_1 maps to the second memory');
+      assertEqual(v1.unlimited, false, 'unlimited flag is preserved');
+
+      section('Inventory storage — v1 blobs use the frozen list order, not the live data');
+      // v1 counts were written against the item order as it stood then, so the
+      // conversion must not depend on what data/*.csv looks like today.
+      const frozen = migrateInventoryData({ memory_22: 5, memory_37: 1, food_12: 2, _unlimited: false });
+      assertEqual(frozen.counts.memory['PECO Athletics - 100m Dash'], 5, 'memory_22 maps through the frozen order');
+      assertEqual(frozen.counts.memory["Where's Tommy"], 1, 'memory_37 maps to the last memory of the v1 dataset');
+      assertEqual(frozen.counts.food['Ultimate Genesis'], 2, 'food_12 maps to the last food of the v1 dataset');
+      assertEqual(LEGACY_V1_ORDER.memory.length, 38, 'the frozen memory order is the 38-item v1 dataset');
+      assertEqual(LEGACY_V1_ORDER.food.length, 13, 'the frozen food order is the 13-item v1 dataset');
+
+      section('Inventory storage — stale indices are dropped, not misapplied');
+      const stale = migrateInventoryData({ food_9: 3, _unlimited: true }, FOODS, MEMS);
+      assertEqual(Object.keys(stale.counts.food).length, 0, 'index past the end of the list is dropped');
+      assertEqual(stale.unlimited, true, 'unlimited flag survives dropped counts');
+
+      section('Inventory storage — name-keyed blobs round-trip');
+      const blob = serializeInventory({ food: { 'Mind Surge': 5 }, memory: { 'Basketball': 2 } }, false);
+      assertEqual(blob._v, INVENTORY_STORAGE_VERSION, 'serialize stamps the storage version');
+      const v2 = migrateInventoryData(blob, FOODS, MEMS);
+      assertEqual(v2.counts.food['Mind Surge'], 5, 'food count round-trips by name');
+      assertEqual(v2.counts.memory['Basketball'], 2, 'memory count round-trips by name');
+      assertEqual(v2.unlimited, false, 'unlimited flag round-trips');
+
+      section('Inventory storage — counts follow the item when the list changes');
+      const reordered = migrateInventoryData(blob, ['Nutri-Core', 'High-Fat', 'Mind Surge'], MEMS);
+      assertEqual(reordered.counts.food['Mind Surge'], 5, 'reordering the food list does not move the count');
+      const withNewItem = migrateInventoryData(blob, ['High-Fat', 'Pear', 'Mind Surge', 'Nutri-Core'], MEMS);
+      assertEqual(withNewItem.counts.food['Mind Surge'], 5, 'inserting a new food does not shift existing counts');
+      assertEqual(withNewItem.counts.food['Pear'], undefined, 'a newly added item has no stored count');
+
+      section('Inventory storage — zero is preserved, not treated as absent');
+      const zeroed = migrateInventoryData(serializeInventory({ food: { 'High-Fat': 0 }, memory: {} }, false), FOODS, MEMS);
+      assertEqual(zeroed.counts.food['High-Fat'], 0, 'an explicit 0 (item excluded) survives the round-trip');
+
+      section('Applying a solution — a blank field is unlimited stock, not zero');
+      assertEqual(subtractFromStock('7', 2), '5', 'a counted item is decremented');
+      assertEqual(subtractFromStock('1', 3), '0', 'stock never goes negative');
+      assertEqual(subtractFromStock('0', 1), '0', 'an excluded item stays excluded');
+      assertEqual(subtractFromStock('', 2), '', 'a blank (unlimited) field stays blank');
+      assertEqual(subtractFromStock('4', 0), '4', 'consuming none leaves the count alone');
+
+      section('Inventory storage — corrupt or empty input yields no counts');
+      const empty = migrateInventoryData(null, FOODS, MEMS);
+      assertEqual(Object.keys(empty.counts.food).length, 0, 'null blob yields no food counts');
+      assertEqual(Object.keys(empty.counts.memory).length, 0, 'null blob yields no memory counts');
+      assertEqual(empty.unlimited, null, 'null blob leaves the unlimited flag unset');
+    }
+
     // ─── Async test coordination ──────────────────────────────────────────────
     // Track pending async tests; show summary when all complete.
     let asyncPending = 0;
@@ -503,6 +584,161 @@
           section('Memory dataset \u2014 every memory has WorldCount > 0');
           assert(false, 'failed to load memories.csv: ' + err.message);
         })
+        .finally(() => asyncEnd());
+    })();
+
+    // These walk STAT_COLUMNS rather than restating it, so a stat that stops
+    // being mapped fails here. The mappers used to be copied into this page,
+    // and a copy that kept passing is how an intellect mapping went missing
+    // from the shipped file without a single test noticing.
+    section('Stat mapping — every declared column reaches its index');
+    (function() {
+      const KINDS = { human: humanStats, food: foodStats, memory: memoryStats };
+      for (const kind in KINDS) {
+        const cols = STAT_COLUMNS[kind];
+        const stats = Object.keys(cols);
+        const row = {};
+        stats.forEach((stat, n) => { row[cols[stat][0]] = String(n + 1); });
+        const v = KINDS[kind](row);
+        stats.forEach((stat, n) => {
+          assertEqual(v[STAT_NAMES.indexOf(stat)], n + 1, kind + ': ' + stat + ' reaches its index');
+        });
+        const declared = new Set(stats.map(x => STAT_NAMES.indexOf(x)));
+        const stray = v.map((x, i) => (x !== 0 && !declared.has(i)) ? STAT_NAMES[i] : null).filter(Boolean);
+        assertEqual(stray.join(','), '', kind + ': writes nothing outside its declared stats');
+        assertEqual(v.length, 15, kind + ': returns a 15-stat vector');
+      }
+    })();
+
+    section('Stat mapping — intellect comes from food, never from a memory');
+    (function() {
+      assert('intellect' in STAT_COLUMNS.human, 'a profession can require intellect');
+      assert('intellect' in STAT_COLUMNS.food,  'food grants intellect');
+      assert(!('intellect' in STAT_COLUMNS.memory), 'no memory grants intellect');
+      const idx = STAT_NAMES.indexOf('intellect');
+      assertEqual(humanStats({ Intellect: '220' })[idx], 220, 'a profession requirement is read');
+      assertEqual(foodStats({ Intellect: '50' })[idx], 50, 'a food grant is read');
+      assertEqual(memoryStats({ Intellect: '50' })[idx], 0, 'a memory column is ignored');
+    })();
+
+    section('Stat mapping — older header spellings still load');
+    (function() {
+      assertEqual(humanStats({ 'Life Exp.': '10' })[2], 10, 'legacy life expectancy header');
+      assertEqual(humanStats({ Disipline: '5' })[8], 5, 'legacy misspelled discipline header');
+      assertEqual(humanStats({ 'Life Exp': '10', 'Life Exp.': '99' })[2], 10, 'the current header wins');
+    })();
+
+    section('Human CSV headers — spelled correctly, old exports still load');
+    (function() {
+      const correct = 'Category;Profession;Weight;Height;Life Exp;Strength;Intellect;Adaptability;' +
+                      'Creativity;Communication;Discipline;Empathy;Focus;Leadership;Logic;Patience;Wisdom\n' +
+                      'Engineer;Test T1;20;30;10;50;;;;;5;;4;;3;;\n';
+      const legacy  = correct.replace('Life Exp;', 'Life Exp.;').replace('Discipline;', 'Disipline;');
+      const a = humanStats(parseCSV(correct).rows[0]);
+      const b = humanStats(parseCSV(legacy).rows[0]);
+      assertEqual(a[2], 10, 'life expectancy reads from the corrected header');
+      assertEqual(a[8], 5,  'discipline reads from the corrected header');
+      assertEqual(b[2], 10, 'a legacy export with the old life-expectancy header still loads');
+      assertEqual(b[8], 5,  'a legacy export with the misspelled discipline header still loads');
+    })();
+
+    asyncBegin();
+    (function() {
+      // The Pear is grown in an Eden Frame rather than crafted, so it carries no
+      // recipe. One point of every physical stat makes it the fine-grain filler
+      // for trimming overshoot.
+      const label = 'Food dataset — the Pear grows one of every physical stat';
+      fetch('data/food.csv')
+        .then(r => r.text())
+        .then(text => {
+          section(label);
+          const row = parseCSV(text).rows.find(r => r['Food'] === 'Pear');
+          if (!row) { assert(false, 'Pear is present in food.csv'); return; }
+          const s = foodStats(row);
+          assertEqual(s[0], 1, 'Pear weight');
+          assertEqual(s[1], 1, 'Pear height');
+          assertEqual(s[2], 1, 'Pear life expectancy');
+          assertEqual(s[3], 1, 'Pear strength');
+          assertEqual(s[4], 1, 'Pear intellect');
+          assert(parseInt(row['TotalAvailability'], 10) >= 100,
+                 'Pear is plentiful enough that eco mode will still pick it');
+        })
+        .catch(err => { section(label); assert(false, 'failed to load food.csv: ' + err.message); })
+        .finally(() => asyncEnd());
+    })();
+
+    asyncBegin();
+    (function() {
+      // Intellect comes from food. No memory has ever granted it, so the column
+      // was dropped rather than kept as a permanently empty one.
+      const label = 'Memory dataset — no intellect column';
+      fetch('data/memories.csv')
+        .then(r => r.text())
+        .then(text => {
+          section(label);
+          const parsed = parseCSV(text);
+          assert(parsed.headers.indexOf('Intellect') === -1, 'memories.csv has no Intellect column');
+          assertEqual(memoryStats({ Intellect: '42', Focus: '5' })[4], 0,
+                      'memoryStats ignores an Intellect column if one is present');
+          assertEqual(memoryStats({ Intellect: '42', Focus: '5' })[10], 5, 'other stats still map');
+        })
+        .catch(err => { section(label); assert(false, 'failed to load memories.csv: ' + err.message); })
+        .finally(() => asyncEnd());
+    })();
+
+    asyncBegin();
+    (function() {
+      // The cartridge memories all share one stat block. Asserted against the
+      // shipped CSV rather than a literal so a dropped or mistyped row fails here.
+      const CARTRIDGES = [
+        'Angerkoski', 'Breakdown', 'Chiptropolis', 'Fluctuations', 'Guitar Slinger',
+        'Keys to Imagination', 'Lonelies', 'PECO Athletics - 100m Dash',
+        'PECO Athletics - Javelin', 'PECO Athletics - Triple Jump', 'Poushki',
+        'Second Reality', 'Starshine', "Touchin' the Chip", 'Turbulence',
+      ];
+      const label = 'Memory dataset — cartridge memories share one stat block';
+      fetch('data/memories.csv')
+        .then(r => r.text())
+        .then(text => {
+          section(label);
+          const rows = {};
+          parseCSV(text).rows.forEach(r => { rows[r['Memory']] = r; });
+          CARTRIDGES.forEach(name => {
+            const row = rows[name];
+            if (!row) { assert(false, name + ' is present in memories.csv'); return; }
+            const s = memoryStats(row);
+            assertEqual(s[5], 20, name + ' adaptability');
+            assertEqual(s[6], 25, name + ' creativity');
+            assertEqual(s[10], 25, name + ' focus');
+            assertEqual(s[13], 20, name + ' patience');
+            assertEqual(row['WorldCount'], '30', name + ' world count');
+          });
+        })
+        .catch(err => {
+          section(label);
+          assert(false, 'failed to load memories.csv: ' + err.message);
+        })
+        .finally(() => asyncEnd());
+    })();
+
+    asyncBegin();
+    (function() {
+      // The Oath Token moves ten stats at once, which is why a human grown with
+      // it qualifies for several professions and the result looks random.
+      const label = 'Memory dataset — Oath Token grants 50 to every mental stat';
+      const MENTAL = ['Adaptability','Communication','Creativity','Discipline','Empathy',
+                      'Focus','Leadership','Logic','Patience','Wisdom'];
+      fetch('data/memories.csv')
+        .then(r => r.text())
+        .then(text => {
+          section(label);
+          const row = parseCSV(text).rows.find(r => r['Memory'] === 'Oath Token');
+          if (!row) { assert(false, 'Oath Token is present in memories.csv'); return; }
+          MENTAL.forEach(stat => assertEqual(row[stat], '50', 'Oath Token ' + stat.toLowerCase()));
+          assertEqual(row['Intellect'], undefined, 'no intellect column to grant');
+          assert(parseInt(row['WorldCount'], 10) > 0, 'Oath Token has a world count');
+        })
+        .catch(err => { section(label); assert(false, 'failed to load memories.csv: ' + err.message); })
         .finally(() => asyncEnd());
     })();
 
@@ -1117,11 +1353,11 @@
     (function() {
       const row = {
         Adaptability: '1', Communication: '2', Creativity: '3', Discipline: '4',
-        Empathy: '5', Focus: '6', Intellect: '7', Leadership: '8',
+        Empathy: '5', Focus: '6', Leadership: '8',
         Logic: '9', Patience: '10', Wisdom: '11',
       };
       const s = memoryStats(row);
-      assertEqual(s[4],  7,  'intellect at index 4');
+      assertEqual(s[4],  0,  'intellect stays 0 — it comes from food, not memories');
       assertEqual(s[5],  1,  'adaptability at index 5');
       assertEqual(s[6],  3,  'creativity at index 6');
       assertEqual(s[7],  2,  'communication at index 7');
