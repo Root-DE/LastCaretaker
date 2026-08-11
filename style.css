@@ -387,7 +387,7 @@ a:hover { text-decoration: underline; }
 }
 .prof-combo-input:focus-visible { outline: none; }
 .prof-combo-chevron {
-  position: absolute; right: 15px; top: 50%; transform: translateY(-50%);
+  position: absolute; right: 15px; top: 50%;
   width: 10px; height: 10px; pointer-events: none;
   border-right: 1.5px solid var(--ink-dim); border-bottom: 1.5px solid var(--ink-dim);
   transform-origin: center;
@@ -632,10 +632,10 @@ a:hover { text-decoration: underline; }
   position: sticky; left: 0; z-index: 2;
   text-align: left; padding-left: 0;
   background: var(--surface);
+  border-right: 1px solid var(--line);
 }
 .edit-table th:first-child { z-index: 3; }
 .edit-table tbody tr:hover td:first-child { background: var(--surface-2); }
-.edit-table th:first-child, .edit-table td:first-child { border-right: 1px solid var(--line); }
 
 #edit-humans .edit-table th:first-child,
 #edit-humans .edit-table td:first-child { width: 232px; border-right: none; }
