@@ -91,6 +91,8 @@ Saira carries the interface voice (names, labels, actions, prose); the mono stac
 
 Note that fork PRs from first-time contributors do not run CI until a maintainer approves the workflow — a green-looking PR may simply never have been tested.
 
+Super-Linter reads its rules from [.github/linters/](.github/linters/), which is where the project's own conventions are recorded rather than left to the bundled defaults. `.stylelintrc.json` keeps `stylelint-config-standard` and switches off the rules that fight the stylesheet's deliberate house style — compact single-line rule bodies, legacy `rgba()` notation, no enforced blank lines — plus `media-feature-range-notation`, since `width <= 600px` needs a newer browser than the `max-width` form it would replace. **The two duplicate-detecting rules stay on:** `no-duplicate-selectors` and `declaration-block-no-duplicate-properties` each caught a real dead declaration, so they earn their place. `.htmlhintrc` exists mainly to allow `head-script-disabled` — the theme script *must* run in the head (see the invariant above), so the default rule forbidding it is wrong for this page.
+
 ## Game data
 
 `data/*.csv` is sourced from the [official wiki](https://thelastcaretaker.wiki.gg/wiki/Humans), which exposes a queryable Cargo table (`api.php?action=cargoquery&tables=memories&fields=...`) — useful for diffing the shipped data against upstream. The wiki carries stats, item weight and rarity, but **no world counts**; `WorldCount` / `TotalAvailability` come from the maintainer and every memory row must have `WorldCount > 0` or the suite fails.
