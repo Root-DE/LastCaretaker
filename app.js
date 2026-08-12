@@ -370,6 +370,41 @@ function loadInventory(silent) {
         const count = state.counts[inp.dataset.kind][item.name];
         if (count !== undefined) inp.value = count;
       });
+
+      // Items added to data/*.csv since this inventory was saved. Left alone
+      // they would read as blank, which means *unlimited* — the solver would
+      // hand out recipes built on stock the user has never seen. In limited
+      // mode the honest default is 0, and saying so out loud matters, since a
+      // silent 0 is exactly the failure the blank/0 rule exists to prevent.
+      // Only v3 blobs can answer this; older ones return nothing and are left
+      // as they are rather than guessed at.
+      const added = [];
+      ['food', 'memory'].forEach(kind => {
+        const list = kind === 'food' ? foods : memories;
+        newItemsSince(state.known, kind, list.map(x => x.name)).forEach(name => {
+          const idx = list.findIndex(x => x.name === name);
+          const inp = document.querySelector(`.inv-item-input[data-kind="${kind}"][data-index="${idx}"]`);
+          if (!inp || inp.value !== '') return;
+          if (!document.getElementById('unlimited-check').checked) inp.value = '0';
+          added.push(name);
+        });
+      });
+      if (added.length) {
+        const list = added.slice(0, 3).join(', ') + (added.length > 3 ? ` and ${added.length - 3} more` : '');
+        showToast(document.getElementById('unlimited-check').checked
+          ? `${added.length} new item${added.length !== 1 ? 's' : ''} since you last saved: ${list}`
+          : `${added.length} new item${added.length !== 1 ? 's' : ''} set to 0 — ${list}. Change them in Resource Inventory.`);
+      } else if (state.known === null && !document.getElementById('unlimited-check').checked) {
+        // A blob from before v3, so which blanks are new items and which were
+        // cleared on purpose is unknowable. Both read as unlimited, which is the
+        // surprising half, so say how many rather than quietly picking one.
+        const blank = [...document.querySelectorAll('.inv-item-input')].filter(i => i.value === '').length;
+        if (blank) {
+          showToast(`${blank} item${blank !== 1 ? 's have' : ' has'} no saved count and count${blank !== 1 ? '' : 's'} as unlimited. ` +
+            'Anything added since you last saved is in there — worth a look in Resource Inventory.');
+        }
+      }
+
       // Rewrite in the current format so the conversion only ever happens once.
       persistInventory();
     } catch (e) {
@@ -1641,10 +1676,12 @@ function setEcoMode(mode) {
 function persistInventory() {
   const counts = { food: {}, memory: {} };
   document.querySelectorAll('.inv-item-input').forEach(inp => {
-    if (inp.value === '') return;
     const list = inp.dataset.kind === 'food' ? foods : memories;
     const item = list[parseInt(inp.dataset.index)];
-    if (item) counts[inp.dataset.kind][item.name] = parseInt(inp.value);
+    // Blanks are written too, as null. Recording every item the app knew about
+    // is what lets the next load tell a cleared field from one that did not
+    // exist yet — see the version note in inventory-storage.js.
+    if (item) counts[inp.dataset.kind][item.name] = inp.value;
   });
   const unlimited = document.getElementById('unlimited-check').checked;
   const data = serializeInventory(counts, unlimited);

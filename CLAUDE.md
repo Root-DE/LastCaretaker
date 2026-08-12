@@ -43,7 +43,7 @@ Bench env vars: `BENCH_PORT`, `BENCH_TIMEOUT`, `BENCH_THREADS`, `BENCH_DEPTH`, `
 | | |
 |---|---|
 | [stat-mapping.js](stat-mapping.js) | `STAT_NAMES`, the labels, and `STAT_COLUMNS` — the only place a CSV column becomes a stat index |
-| [inventory-storage.js](inventory-storage.js) | the `tlc_inventory` format, its v1 conversion, and `subtractFromStock` |
+| [inventory-storage.js](inventory-storage.js) | the `tlc_inventory` format, its v1/v2 conversions, `newItemsSince` and `subtractFromStock` |
 | [profession-model.js](profession-model.js) | `getTier`, `stripTier`, `collateralRisk` |
 | [theme-mode.js](theme-mode.js) | `resolveTheme`, `readThemeMode` — **also loaded from the document head**, before the stylesheet, so the stored theme is on the root element at first paint |
 
@@ -68,6 +68,8 @@ Message protocol (app ⇄ worker): app sends `solve`, `stop`, `pause`, `resume`;
 - **The wasm binary is committed and CI verifies it.** After editing the `.wat`, run `npm run build:wasm` and commit the regenerated `solver-kernel.wasm`; CI recompiles and fails on `git diff --exit-code`. `.gitattributes` marks `*.wasm` binary so line-ending normalization can't corrupt it.
 
 - **Inventory persists in `localStorage` under `tlc_inventory`, keyed by item name** ([inventory-storage.js](inventory-storage.js)). Version 1 blobs were keyed by list position; `migrateInventoryData` converts them against `LEGACY_V1_ORDER`, a frozen snapshot of the item order as it stood when those blobs were written. That snapshot is why `data/*.csv` can now be reordered or extended freely — do not update it to match new data, or every old inventory converts onto the wrong items.
+
+- **The storage format is v3, and the point of v3 is that blanks are on record.** v1 and v2 stored only the numbers, so on read an absent name was ambiguous: either the user cleared that field (blank = unlimited for that item) or the item was added to `data/*.csv` after the save. Those need opposite defaults — a cleared field must stay blank, a new item must become `0`, since nobody owns something they have never seen. v3 writes blanks as `null`, `migrateInventoryData` returns the `known` name set, and `newItemsSince` names the difference. `known` is `null` for v1/v2 blobs and callers must not guess: `loadInventory` sets new items to `0` only when the format can actually say so, and otherwise just reports how many fields count as unlimited. **`persistInventory` therefore has to write every field, blanks included** — go back to skipping them and new items silently read as unlimited stock again.
 
 - **In an inventory field, blank means unlimited for that item and `0` excludes it from the search entirely.** Unticking "Assume unlimited resources" seeds every blank with `0` so the user starts from "I have nothing" — but that fill must only run on a real click. The restore paths (`loadInventory`, `handleInvCSVUpload`) pass `toggleUnlimited(false)`; otherwise a deliberately blank field comes back as `0` and the item silently vanishes from every solve. Same trap in `applySolution` (use `subtractFromStock`) and in the CSV export, which writes blank as blank in both modes.
 

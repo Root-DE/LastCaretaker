@@ -548,6 +548,40 @@
       assertEqual(subtractFromStock('', 2), '', 'a blank (unlimited) field stays blank');
       assertEqual(subtractFromStock('4', 0), '4', 'consuming none leaves the count alone');
 
+      // An item added to data/*.csv after an inventory was saved must not arrive
+      // as "unlimited". In limited mode the honest default is 0 — you do not own
+      // something you have never seen. Telling a *new* item from one the user
+      // deliberately cleared needs the blanks on record, which is what v3 adds.
+      section('Inventory storage — v3 records blank fields, so new items are identifiable');
+      const v3 = serializeInventory({ food: { 'High-Fat': 4, 'Mind Surge': '' }, memory: {} }, false);
+      assertEqual(v3._v, 3, 'the storage version is 3');
+      assert('Mind Surge' in v3.food, 'a blank field is recorded rather than omitted');
+      assertEqual(v3.food['Mind Surge'], null, 'a blank is stored as null, not as a count');
+      const readV3 = migrateInventoryData(v3, FOODS, MEMS);
+      assertEqual(readV3.counts.food['High-Fat'], 4, 'counts still round-trip');
+      assertEqual(readV3.counts.food['Mind Surge'], undefined, 'a recorded blank is not read back as a count');
+
+      section('Inventory storage — v3 reports which items are new since the save');
+      assertEqual(newItemsSince(readV3.known, 'food', ['High-Fat', 'Mind Surge']).length, 0,
+        'nothing is new when the data has not changed');
+      const added = newItemsSince(readV3.known, 'food', ['High-Fat', 'Mind Surge', 'Pear']);
+      assertEqual(added.length, 1, 'a food added since the save is reported');
+      assertEqual(added[0], 'Pear', 'and it is reported by name');
+      assert(newItemsSince(readV3.known, 'food', ['Mind Surge']).length === 0,
+        'a removed item is not reported as new');
+
+      section('Inventory storage — older blobs cannot say, and must not guess');
+      // v1 and v2 omitted blanks, so an absent name means either "added since"
+      // or "deliberately cleared". Guessing 0 would silently drop an item the
+      // user does own; guessing unlimited would invent stock. Report neither.
+      const v2blob = { _v: 2, _unlimited: false, food: { 'High-Fat': 4 }, memory: {} };
+      const readV2 = migrateInventoryData(v2blob, FOODS, MEMS);
+      assertEqual(readV2.counts.food['High-Fat'], 4, 'a v2 blob still reads its counts');
+      assertEqual(readV2.known, null, 'a v2 blob reports that it cannot identify new items');
+      assertEqual(newItemsSince(readV2.known, 'food', ['High-Fat', 'Pear']).length, 0,
+        'no item is claimed to be new when the format cannot tell');
+      assertEqual(newItemsSince(null, 'food', ['Pear']).length, 0, 'a missing known-set is not an error');
+
       section('Inventory storage — corrupt or empty input yields no counts');
       const empty = migrateInventoryData(null, FOODS, MEMS);
       assertEqual(Object.keys(empty.counts.food).length, 0, 'null blob yields no food counts');
