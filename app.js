@@ -68,6 +68,23 @@ function getItemImageUrl(name) {
   return `https://thelastcaretaker.wiki.gg/images/${formatted}.png?format=original`;
 }
 
+// ─── Analytics ───────────────────────────────────────────────────────────────
+// The only place this file talks to Umami. `window.umami` is undefined whenever
+// the script is blocked, fails to load, or the visitor sends Do Not Track — and
+// Umami does not queue calls, so an unguarded track() throws. Everything here is
+// pseudonymous and comes from a fixed vocabulary; no item names, no free text
+// and nothing a user typed is ever sent. See privacy.html.
+//
+// Never pre-define window.umami as a stub queue: the real tracker refuses to
+// overwrite an existing window.umami, and tracking would silently die forever.
+function tlcTrack(name, data) {
+  try {
+    if (!window.umami || typeof window.umami.track !== 'function') return;
+    if (data === undefined) window.umami.track(name);
+    else window.umami.track(name, data);
+  } catch (e) { /* analytics must never break the app */ }
+}
+
 // ─── Data Loading ────────────────────────────────────────────────────────────
 async function fetchCSV(path) {
   const res = await fetch(path);
@@ -347,6 +364,7 @@ function saveInventory() {
   downloadBlob(csv, 'inventory.csv');
   flashButton('save-inv-btn');
   showToast('Inventory saved as CSV');
+  tlcTrack('inventory', { action: 'save' });
 }
 
 function loadInventory(silent) {
@@ -417,6 +435,7 @@ function loadInventory(silent) {
   const fileInput = document.getElementById('inv-csv-upload');
   fileInput.value = '';
   fileInput.click();
+  tlcTrack('inventory', { action: 'load' });
 }
 
 function handleInvCSVUpload(file) {
@@ -471,6 +490,7 @@ function resetInventory() {
   document.querySelectorAll('.inv-item-input').forEach(inp => { inp.value = ''; });
   persistInventory();
   showToast('Inventory reset');
+  tlcTrack('inventory', { action: 'reset' });
 }
 
 // `fillBlanks` seeds empty fields with 0 when switching to limited mode, so the
@@ -486,6 +506,9 @@ function toggleUnlimited(fillBlanks) {
       if (inp.value === '') inp.value = '0';
     });
   }
+  // fillBlanks is the same "this was a real click" signal the fill above relies
+  // on, so restoring saved state does not register as a user action.
+  if (fillBlanks) tlcTrack('inventory', { action: checked ? 'unlimited-on' : 'unlimited-off' });
 }
 
 // ─── UI: Edit Data Tables ────────────────────────────────────────────────────
@@ -781,6 +804,7 @@ function downloadFoodCSV() {
     csv += f.name + ';' + foodStatCols.map(c => f.stats[c.si] || '').join(';') + ';' + (f.availability || '') + '\n';
   });
   downloadBlob(csv, 'Food.csv');
+  tlcTrack('data-export', { file: 'food' });
 }
 
 function downloadMemoriesCSV() {
@@ -795,6 +819,7 @@ function downloadMemoriesCSV() {
     csv += m.name + ';' + memCols.map(c => m.stats[c.si] || '').join(';') + ';' + (m.availability || '') + '\n';
   });
   downloadBlob(csv, 'Memories.csv');
+  tlcTrack('data-export', { file: 'memories' });
 }
 
 function downloadHumansCSV() {
@@ -808,6 +833,7 @@ function downloadHumansCSV() {
     csv += '\n';
   });
   downloadBlob(csv, 'Humans.csv');
+  tlcTrack('data-export', { file: 'humans' });
 }
 
 function downloadBlob(content, filename) {
@@ -845,6 +871,7 @@ function uploadFoodCSV(text) {
   buildEditTables();
   populateDropdown();
   showToast(`Loaded ${foods.length} foods`);
+  tlcTrack('data-import', { file: 'food' });
 }
 
 function uploadMemoriesCSV(text) {
@@ -858,6 +885,7 @@ function uploadMemoriesCSV(text) {
   buildEditTables();
   populateDropdown();
   showToast(`Loaded ${memories.length} memories`);
+  tlcTrack('data-import', { file: 'memories' });
 }
 
 function uploadHumansCSV(text) {
@@ -876,6 +904,7 @@ function uploadHumansCSV(text) {
   document.getElementById('requirements-panel').classList.add('hidden');
   buildEditTables();
   showToast(`Loaded ${humans.length} professions`);
+  tlcTrack('data-import', { file: 'humans' });
 }
 
 // ─── Toast ───────────────────────────────────────────────────────────────────
@@ -946,7 +975,7 @@ function buildItems() {
 }
 
 function startSolve() {
-  if (currentTarget === null) return;
+  if (currentTarget === null) { tlcTrack('solve-blocked', { reason: 'no-target' }); return; }
   const target = humans[currentTarget];
 
   // Read eco mode now — used throughout this function before the global is updated
@@ -960,14 +989,20 @@ function startSolve() {
     if (target.stats[si] > 0) targetReqs.push([si, target.stats[si]]);
   });
 
-  if (targetReqs.length === 0) { showToast('No stat requirements for this profession'); return; }
+  if (targetReqs.length === 0) {
+    tlcTrack('solve-blocked', { reason: 'no-requirements' });
+    showToast('No stat requirements for this profession'); return;
+  }
 
   const requiredSet = new Array(15).fill(false);
   targetReqs.forEach(([si]) => { requiredSet[si] = true; });
 
   // Pre-filter: remove items that don't contribute to any required stat
   items = items.filter(it => targetReqs.some(([si]) => it.stats[si] > 0));
-  if (items.length === 0) { showToast('No items contribute to required stats'); return; }
+  if (items.length === 0) {
+    tlcTrack('solve-blocked', { reason: 'no-items' });
+    showToast('No items contribute to required stats'); return;
+  }
 
   // Sort items by specificity (required contribution / (1 + extra contribution))
   items.sort((a, b) => {
@@ -987,6 +1022,7 @@ function startSolve() {
 
   for (const [si, val] of targetReqs) {
     if (bestPerStat[si] <= 0) {
+      tlcTrack('solve-blocked', { reason: 'infeasible-stat' });
       showToast(`No item provides '${STAT_LABELS[STAT_NAMES[si]]}'. Infeasible.`);
       return;
     }
@@ -1098,7 +1134,10 @@ function startSolve() {
   }
 
   // If all workers ended up with no first items the problem is infeasible with this inventory
-  if (wi === 0) { showToast('No usable items with current inventory — all counts are 0'); return; }
+  if (wi === 0) {
+    tlcTrack('solve-blocked', { reason: 'empty-inventory' });
+    showToast('No usable items with current inventory — all counts are 0'); return;
+  }
 
   // UI state
   solving = true;
@@ -1298,6 +1337,23 @@ function finishSolve() {
     ? [`${globalBest.items.length} items`, `${globalBest.collateral} professions matched`, `${elapsed.toFixed(1)}s`]
     : [`${elapsed.toFixed(1)}s`];
   setStatus(finalState, finalReadings, false);
+
+  // One event per solve. displayResults is deliberately not instrumented — it
+  // also runs on every newBest during a live search, which would be dozens of
+  // events for a single run.
+  const solved = humans[currentTarget];
+  tlcTrack('solve-finished', {
+    profession: solved ? solved.profession : 'unknown',
+    category: solved ? solved.category : 'unknown',
+    eco_mode: ecoModeValue,
+    outcome: cancelledByUser ? 'stopped' : (globalBest ? 'found' : 'none'),
+    collateral: globalBest ? globalBest.collateral : -1,
+    items: globalBest ? globalBest.items.length : 0,
+    seconds: Number(elapsed.toFixed(1)),
+    exhaustive: workersExhaustive >= numWorkers,
+    optimal: !!globalBest && globalBest.collateral <= inherentCount,
+    threads: numWorkers,
+  });
 
   displayResults(elapsed, true);
 }
@@ -1656,6 +1712,7 @@ function applySolution() {
   document.getElementById('apply-solution-wrap').classList.add('hidden');
   persistInventory();
   showToast('Resources subtracted from inventory');
+  tlcTrack('apply-solution', { items: globalBest.items.length });
 }
 
 // ─── Eco Mode 3-way Switch ───────────────────────────────────────────────────
@@ -1670,6 +1727,7 @@ function setEcoMode(mode) {
     btn.classList.toggle('active', on);
     btn.setAttribute('aria-checked', String(on));
   });
+  tlcTrack('eco-mode', { mode: mode });
 }
 
 // ─── Inventory Persistence ───────────────────────────────────────────────────
@@ -1745,6 +1803,9 @@ function applyThemeMode(mode) {
 function setThemeMode(mode) {
   try { localStorage.setItem('tlc_theme', mode); } catch (e) { /* storage blocked */ }
   applyThemeMode(mode);
+  // Only reached on a real change — the drag handler already filters repeats,
+  // and restoring a stored theme goes through applyThemeMode directly.
+  tlcTrack('theme', { mode: mode });
 }
 
 // Drag or swipe the knob along the track.
@@ -1803,6 +1864,8 @@ function setupToggle(btnId, bodyId) {
     body.classList.toggle('hidden', open);
     btn.classList.toggle('open', !open);
     btn.setAttribute('aria-expanded', String(!open));
+    // Opening is the interesting half; closing again says nothing about intent.
+    if (!open) tlcTrack('panel-open', { panel: btnId.replace('-toggle', '') });
   });
 }
 

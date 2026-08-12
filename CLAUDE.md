@@ -83,9 +83,22 @@ Message protocol (app ⇄ worker): app sends `solve`, `stop`, `pause`, `resume`;
 
 [style.css](style.css) is a token system with dark as the default ground and a light theme applied both via `prefers-color-scheme` and an explicit `[data-theme]` override — **the light values exist in two blocks and must be edited together**, or the toggle and the OS preference disagree.
 
-Palette values and structural conventions (2px corners, mono uppercase eyebrows, the status strip, orange signal against phosphor-green system state) are aligned with the official game site so the tool reads as a companion to it. Their wordmark, artwork and licensed display face (Stratum2) are deliberately **not** used. The display face is [Saira](fonts/) — SIL OFL, self-hosted as one variable woff2, with [fonts/OFL.txt](fonts/OFL.txt) retained as the licence requires. Keep it self-hosted: a webfont CDN would add a third-party request to every page load, which this site otherwise has none of.
+Palette values and structural conventions (2px corners, mono uppercase eyebrows, the status strip, orange signal against phosphor-green system state) are aligned with the official game site so the tool reads as a companion to it. Their wordmark, artwork and licensed display face (Stratum2) are deliberately **not** used. The display face is [Saira](fonts/) — SIL OFL, self-hosted as one variable woff2, with [fonts/OFL.txt](fonts/OFL.txt) retained as the licence requires. Keep it self-hosted: a webfont CDN would put a third party in the critical path of rendering text on every page load, and the font is the one asset that has no reason to be anywhere else. (The page is *not* request-pure — item images and the favicon come from the wiki, the footer version from `api.github.com`, and analytics from `eu.umami.is`. All are disclosed in [privacy.html](privacy.html).)
 
 Saira carries the interface voice (names, labels, actions, prose); the mono stack is reserved for readings — anything the solver measured or counted.
+
+## Analytics
+
+Umami (EU plan), one `<script defer>` in `index.html`'s head, plus `tlcTrack` and about a dozen call sites in `app.js`. The whole of it is removable by deleting the tag and grepping out `tlcTrack`.
+
+- **`tlcTrack` lives in `app.js` rather than in its own script on purpose.** A file named `analytics.js` is matched by common ad-blocker filter lists; if it were blocked, every call site would throw `ReferenceError` and take the app down. `app.js` is never blocked by name. The helper is guarded and swallows its own errors — `window.umami` is undefined whenever the script is blocked, fails, or the visitor sends Do Not Track, and Umami does **not** queue calls.
+- **Never pre-define `window.umami` as a stub queue.** The real tracker does `window.umami || (window.umami = {...})`, so an existing object is never overwritten and tracking would silently die forever.
+- **`data-domains` is the only thing keeping localhost and forks out of the data.** It gates sending, not the script download. To watch events arrive while developing, add `,localhost` to it temporarily — and take it out again.
+- **`data-do-not-track="true"` is not the default.** Without it the browser signal is ignored.
+- **`data-performance` and `umami.identify()` stay off.** Both read or attach far more than reach measurement needs, and either would require a consent banner in Germany, which the current setup avoids.
+- **Track at choke points, never at render points.** `finishSolve` fires once per solve; `displayResults` also runs on every `newBest` and would emit dozens of events per run. Same trap in `toggleUnlimited`, where only a real click passes `fillBlanks`.
+- **Only fixed vocabulary is sent** — no item names, no imported data, nothing a user typed. [privacy.html](privacy.html) lists every event and must be updated alongside any new one.
+- `tests.html` has its own head and carries no tag, so the suite generates no traffic.
 
 ## CI
 

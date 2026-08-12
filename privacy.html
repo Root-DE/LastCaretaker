@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy &mdash; The Last Caretaker Human Growth Calculator</title>
+
+  <!-- Same bootstrap as index.html: resolve the theme before first paint so the
+       page never flashes the wrong ground. -->
+  <script src="theme-mode.js"></script>
+  <script>
+    (function () {
+      var stored = null;
+      try { stored = localStorage.getItem('tlc_theme'); } catch (e) { /* storage blocked */ }
+      var mq = function (q) { return window.matchMedia && window.matchMedia(q).matches; };
+      var mode = readThemeMode(stored);
+      document.documentElement.setAttribute('data-theme-mode', mode);
+      document.documentElement.setAttribute('data-theme', resolveTheme(mode, {
+        prefersDark: mq('(prefers-color-scheme: dark)'),
+        prefersLight: mq('(prefers-color-scheme: light)'),
+        hour: new Date().getHours(),
+      }));
+    })();
+  </script>
+
+  <meta name="description" content="What the Human Growth Calculator measures, what it does not, and how to switch it off.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://root-de.github.io/LastCaretaker/privacy.html">
+  <meta name="theme-color" content="#060c0f" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#e6eaec" media="(prefers-color-scheme: light)">
+  <meta name="color-scheme" content="dark light">
+
+  <link rel="preload" href="fonts/saira-latin-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="https://thelastcaretaker.wiki.gg/images/Ultimate_Genesis.png?format=original" type="image/png">
+
+  <!-- This page carries no analytics tag. Reading the privacy notice should not
+       itself be measured. -->
+</head>
+<body>
+  <div class="app">
+
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-title">The Last Caretaker</span>
+        <span class="brand-sub">Human Growth Calculator</span>
+      </div>
+      <a class="back-link" href="index.html">&larr; Back to the calculator</a>
+    </header>
+
+    <h1 class="lede">Privacy</h1>
+    <p class="lede-sub">What this site measures, what it deliberately does not, and how to switch it off in one line.</p>
+
+    <main class="main">
+
+      <section class="card">
+        <div class="card-header"><h2>The short version</h2></div>
+        <div class="card-body prose">
+          <p>The solver runs entirely in your browser. Your inventory, your edited
+             data and the recipes you generate never leave your device.</p>
+          <p>Page views are counted, using a cookieless analytics service that
+             stores nothing on your device and never sees who you are. There is no
+             advertising, no profiling, no cross-site tracking and no data sold to
+             anyone. If your browser sends <span class="mono">Do&nbsp;Not&nbsp;Track</span>,
+             nothing is recorded at all.</p>
+          <p>The rest of this page is the detail that
+             <abbr title="General Data Protection Regulation">GDPR</abbr> Art.&nbsp;13
+             requires.</p>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-header"><h2>Who is responsible, and how to reach me</h2></div>
+        <div class="card-body prose">
+          <p>This is a non-commercial hobby project with no advertising, no
+             payments and nothing for sale, maintained from Germany by the author
+             of the
+             <a href="https://github.com/Root-DE/LastCaretaker" target="_blank" rel="noopener">Root-DE/LastCaretaker</a>
+             repository.</p>
+          <p>For anything to do with this notice &mdash; a question, an objection,
+             or any of the requests listed under
+             <a href="#rights">Your rights</a> &mdash; either of these reaches me:</p>
+          <p class="controller-block">
+            <a href="mailto:LastCaretaker@outlook.com">LastCaretaker@outlook.com</a><br>
+            <a href="https://github.com/Root-DE/LastCaretaker/issues" target="_blank" rel="noopener">github.com/Root-DE/LastCaretaker/issues</a>
+            <span class="hint">&mdash; public, and needs a GitHub account</span>
+          </p>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-header"><h2>Analytics</h2></div>
+        <div class="card-body prose">
+          <p>This site uses <a href="https://umami.is" target="_blank" rel="noopener">Umami</a>,
+             a privacy-focused analytics service, on its EU-hosted plan operated by
+             Umami Software,&nbsp;Inc. Loading a page contacts
+             <span class="mono">eu.umami.is</span>, which is where the measurement
+             is sent, and <span class="mono">cloud.umami.is</span>, which currently
+             serves the script file itself.</p>
+
+          <p><strong>No cookies are set, and nothing is written to your device.</strong>
+             The script reads a single value from your browser's local storage &mdash;
+             the opt-out flag described below &mdash; and writes nothing.</p>
+
+          <p class="section-label">Recorded for each page view</p>
+          <ul>
+            <li>the page address, page title and site host name</li>
+            <li>the referring address, if you arrived from a link</li>
+            <li>your screen size and browser language</li>
+            <li>derived from your IP address and browser identification: country,
+                browser, operating system and device type</li>
+          </ul>
+
+          <p><strong>Your IP address is not stored.</strong> It is used in passing
+             to derive the country and to compute a one-way session hash, then
+             discarded. That hash is what distinguishes one visit from another; it
+             cannot be reversed into an address, and the secret it is built with is
+             rotated monthly.</p>
+
+          <p class="section-label">Recorded when you use a feature</p>
+          <p>So I can tell which parts of a free tool are worth maintaining, a
+             small, fixed set of events is counted. Each carries only values drawn
+             from a fixed vocabulary. <strong>Nothing you type is ever sent</strong>
+             &mdash; not item names, not custom data you import, not file names.</p>
+          <ul>
+            <li><span class="mono">solve-finished</span> &mdash; the target profession and
+                its category, the mode used, whether a recipe was found, how many
+                items and professions it came out at, how long it took, and how many
+                threads ran</li>
+            <li><span class="mono">solve-blocked</span> &mdash; that a solve could not
+                start, and which of five reasons stopped it</li>
+            <li><span class="mono">eco-mode</span>, <span class="mono">theme</span>,
+                <span class="mono">panel-open</span> &mdash; which mode, theme or panel
+                was chosen</li>
+            <li><span class="mono">inventory</span>, <span class="mono">data-export</span>,
+                <span class="mono">data-import</span>, <span class="mono">apply-solution</span>
+                &mdash; that the feature was used, and on which of the three data files</li>
+          </ul>
+
+          <p class="section-label">Deliberately switched off</p>
+          <p>Umami can also record session replays, heatmaps, performance
+             measurements, and identified users. <strong>None of these are enabled
+             here</strong>, and the function that attaches a persistent identity to a
+             visitor is never called. Each of them would read far more from your
+             device than counting visits needs.</p>
+
+          <p class="section-label">Legal basis and retention</p>
+          <p>Legitimate interest, GDPR Art.&nbsp;6(1)(f). The interest is
+             understanding which parts of a free tool people actually use, so that
+             effort goes to the right place. Because the data is pseudonymous,
+             carries no identifiers and is never combined with anything else, it
+             does not override your interests. Data is retained for 12 months and
+             then removed; what is kept is a count, not a record of a person.</p>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-header"><h2>How to switch it off</h2></div>
+        <div class="card-body prose">
+          <p>Any one of these is enough:</p>
+          <ul>
+            <li>Turn on <strong>Do Not Track</strong> in your browser. This site
+                honours it, and nothing at all is recorded.</li>
+            <li>Run this once in your browser's developer console. It sets a flag
+                that the analytics script checks on every page and obeys:
+                <code class="mono">localStorage.setItem('umami.disabled', 1)</code></li>
+            <li>Use any content blocker. The script is blocked by most of them, and
+                the site is built to work perfectly well without it.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-header"><h2>What stays on your device</h2></div>
+        <div class="card-body prose">
+          <p>The calculator keeps two things in your browser's local storage. Both
+             are first-party, both stay on your machine, and neither is transmitted
+             anywhere:</p>
+          <ul>
+            <li><span class="mono">tlc_inventory</span> &mdash; the item counts you enter
+                in Resource Inventory</li>
+            <li><span class="mono">tlc_theme</span> &mdash; whether you chose dark, auto
+                or light</li>
+          </ul>
+          <p>Clearing your browser storage for this site removes both. They exist
+             only because you asked the page to remember something, so they need no
+             consent.</p>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-header"><h2>Other services this page contacts</h2></div>
+        <div class="card-body prose">
+          <p>These are not analytics, but they see your IP address the same way any
+             web request does, so they belong here:</p>
+          <ul>
+            <li><strong>GitHub Pages</strong> (GitHub,&nbsp;Inc.) hosts this site and
+                serves every file on it. See
+                <a href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement" target="_blank" rel="noopener">GitHub's privacy statement</a>.</li>
+            <li><strong>thelastcaretaker.wiki.gg</strong> supplies the item pictures
+                and the tab icon. Your browser fetches these images directly.</li>
+            <li><strong>api.github.com</strong> is asked once per visit for the date
+                of the latest change, which is shown in the footer.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="card" id="rights">
+        <div class="card-header"><h2>Your rights</h2></div>
+        <div class="card-body prose">
+          <p>Under the GDPR you have the right to access your data (Art.&nbsp;15),
+             to have it corrected (Art.&nbsp;16) or erased (Art.&nbsp;17), to
+             restrict its processing (Art.&nbsp;18), to receive it in a portable
+             form (Art.&nbsp;20), and to complain to a supervisory authority
+             (Art.&nbsp;77).</p>
+          <p class="right-to-object"><strong>Right to object (Art.&nbsp;21).</strong>
+             Because the analytics rests on legitimate interest, you may object to
+             it at any time, for reasons arising from your particular situation. No
+             justification beyond that is needed, and you do not have to contact me
+             to make it effective &mdash; any of the three methods above stops the
+             processing immediately.</p>
+          <p>In practice, the data held is pseudonymous and contains nothing that
+             could be traced back to you, so a request to access or erase it cannot
+             usually be matched to a person (GDPR Art.&nbsp;11). That is a
+             consequence of collecting as little as possible, not a way of avoiding
+             the obligation.</p>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-header"><h2>Processors and transfers</h2></div>
+        <div class="card-body prose">
+          <p>Umami Software,&nbsp;Inc. acts as a processor under a data processing
+             agreement (GDPR Art.&nbsp;28) published at
+             <a href="https://umami.is/dpa" target="_blank" rel="noopener">umami.is/dpa</a>,
+             which applies automatically and needs no separate signature. Their
+             sub-processors are listed at
+             <a href="https://umami.is/subprocessors" target="_blank" rel="noopener">umami.is/subprocessors</a>.
+             The EU plan is used so that measurement data is processed within the
+             European Union.</p>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-header"><h2>Changes</h2></div>
+        <div class="card-body prose">
+          <p>This site is open source, so every change to this page is public and
+             dated in its
+             <a href="https://github.com/Root-DE/LastCaretaker/commits/master/privacy.html" target="_blank" rel="noopener">revision history</a>.</p>
+          <p class="hint">Last updated: 11 August 2026</p>
+        </div>
+      </section>
+
+    </main>
+
+    <footer class="footer">
+      <p><a href="index.html">Back to the calculator</a>
+         &bull; <a href="https://github.com/Root-DE/LastCaretaker" target="_blank" rel="noopener">GitHub / Contribute</a></p>
+      <p class="footer-note">All computation runs in your browser.</p>
+    </footer>
+
+  </div>
+</body>
+</html>

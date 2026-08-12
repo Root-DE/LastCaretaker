@@ -77,6 +77,20 @@
     ]
   }
   </script>
+
+  <!-- Analytics. Cookieless: nothing is written to the visitor's device, and the
+       browser's Do Not Track signal is honoured (data-do-not-track defaults to
+       off, which is why it is spelled out). data-domains gates *sending* to the
+       live host, so local development and forks record nothing — the script file
+       is still fetched either way, which no build-step-free site can avoid.
+       Deliberately absent: data-performance, and umami.identify() is never
+       called. Both read or attach far more than reach measurement needs, and
+       either would require a consent banner. See privacy.html. -->
+  <script defer src="https://eu.umami.is/script.js"
+          data-website-id="7f9e60c5-d3b4-4d21-b577-a1baa89efeff"
+          data-host-url="https://eu.umami.is"
+          data-domains="root-de.github.io"
+          data-do-not-track="true"></script>
 </head>
 <body>
   <div class="app">
@@ -335,7 +349,8 @@
     <footer class="footer">
       <p>Based on data from the <a href="https://thelastcaretaker.wiki.gg/wiki/Humans" target="_blank" rel="noopener">official wiki</a>
          &bull; <a href="https://store.steampowered.com/app/1783560/The_Last_Caretaker/" target="_blank" rel="noopener">Steam</a>
-         &bull; <a href="https://github.com/Root-DE/LastCaretaker" target="_blank" rel="noopener">GitHub / Contribute</a></p>
+         &bull; <a href="https://github.com/Root-DE/LastCaretaker" target="_blank" rel="noopener">GitHub / Contribute</a>
+         &bull; <a href="privacy.html">Privacy</a></p>
       <p class="footer-note">Solver: specificity-optimised IDA* with parallel Web Workers. All computation runs in your browser.</p>
       <p class="footer-version" id="footer-version"></p>
     </footer>
