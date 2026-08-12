@@ -65,19 +65,29 @@ jobs:
   security:
     name: Security scan
     runs-on: ubuntu-latest
+    # Pull requests only. `master` is protected and accepts changes exclusively
+    # through a PR, so a push here is always a merge of a diff this job has
+    # already linted — and repeating it is not free. super-linter resolves the
+    # diff base from the push event's "before" commit, which a force-push leaves
+    # unreachable; it then falls back to HEAD~20, and that walks the first-parent
+    # chain, which is far shorter than 20 here because most commits arrive behind
+    # merge commits. The job then dies during initialization without linting
+    # anything. Running on the PR drops the failure mode and loses no coverage.
+    if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
         with:
           # super-linter needs full history to diff the changed files against the base.
           fetch-depth: 0
 
-      - name: Run CodeQL-like static analysis
+      - name: Run super-linter
         uses: github/super-linter/slim@v7
         env:
-          # Lint only the files changed in this PR/push, not the entire legacy
+          # Lint only the files changed in this PR, not the entire legacy
           # codebase. Full-codebase linting was never enforced here and would fail
           # on pre-existing style; scoping to the diff is super-linter's
-          # recommended adoption mode and keeps new changes clean.
+          # recommended adoption mode and keeps new changes clean. Rules come from
+          # .github/linters/, which is where this project's own conventions live.
           VALIDATE_ALL_CODEBASE: false
           VALIDATE_JAVASCRIPT_ES: true
           VALIDATE_CSS: true
